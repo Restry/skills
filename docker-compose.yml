@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      SYNC_SKILL_REPO: ${SYNC_SKILL_REPO:?set repo URL in .env, e.g. https://github.com/you/skills.git}
+      SYNC_SKILL_DATA: /data
+    volumes:
+      - sync_data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  sync_data:
