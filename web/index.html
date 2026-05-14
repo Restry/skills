@@ -1,12 +1,776 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>sync-skill</title>
-  </head>
-  <body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>sync-skill</title>
+<style>
+  /* ─────────── tokens ─────────── */
+  :root {
+    --paper: #f5f1ea;
+    --surface: #ffffff;
+    --surface-2: #efe9df;
+    --ink: #1b1812;
+    --ink-2: #3a342b;
+    --muted: #7a7367;
+    --muted-2: #a59e92;
+    --line: rgba(27, 24, 18, 0.10);
+    --line-2: rgba(27, 24, 18, 0.06);
+    --accent: #c9532a;
+    --accent-ink: #6c2a14;
+    --accent-soft: #fde7dd;
+    --ok: #5a8a4e;
+    --ok-soft: #e2eedb;
+    --warn: #b27b20;
+    --warn-soft: #f6e7c8;
+    --bad: #b03a2e;
+    --shadow: 0 1px 0 rgba(27, 24, 18, 0.04), 0 8px 24px -12px rgba(27, 24, 18, 0.10);
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Apple Garamond", Garamond, "Times New Roman", serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─────────── shell ─────────── */
+  .shell { max-width: 1180px; margin: 0 auto; padding: 28px 28px 80px; }
+
+  header.top {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 24px; margin-bottom: 28px; padding-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+  }
+  header.top h1 {
+    margin: 0; font: 500 28px/1.1 var(--serif); letter-spacing: -0.01em;
+  }
+  header.top h1 .accent { color: var(--accent); }
+  header.top .sub { margin-top: 6px; color: var(--muted); font-size: 13px; }
+  header.top .lockup { display: flex; align-items: baseline; gap: 14px; }
+  header.top .badge {
+    font: 500 11px/1 var(--mono); letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--line); padding: 5px 8px; border-radius: 999px;
+  }
+  header.top .meta { font-size: 12px; color: var(--muted); text-align: right; }
+  header.top .meta code { font-family: var(--mono); }
+  header.top .meta button {
+    margin-top: 6px; font: inherit; font-size: 12px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--ink-2); padding: 4px 9px; border-radius: 6px; cursor: pointer;
+  }
+  header.top .meta button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ─────────── KPIs ─────────── */
+  .kpis {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px;
+  }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px 16px; position: relative;
+  }
+  .kpi .label {
+    font: 500 10px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .kpi .value {
+    margin-top: 8px; font: 500 32px/1 var(--serif); color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .kpi .hint { margin-top: 6px; font-size: 11px; color: var(--muted); }
+  .kpi.accent::before {
+    content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px;
+    background: var(--accent); border-radius: 2px;
+  }
+  .kpi.warn::before {
+    content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px;
+    background: var(--warn); border-radius: 2px;
+  }
+  .kpi.ok::before {
+    content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px;
+    background: var(--ok); border-radius: 2px;
+  }
+
+  /* ─────────── grid ─────────── */
+  .grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 22px; }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
+
+  section.panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden;
+  }
+  section.panel > header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+  }
+  section.panel > header h2 {
+    margin: 0; font: 500 13px/1 var(--mono); letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  section.panel > header .count {
+    font: 500 11px/1 var(--mono); color: var(--ink-2);
+    background: var(--surface-2); border-radius: 999px; padding: 4px 8px;
+  }
+
+  /* search */
+  .search { padding: 12px 18px; border-bottom: 1px solid var(--line-2); }
+  .search input {
+    width: 100%; border: 1px solid var(--line); background: var(--paper);
+    padding: 8px 12px; font: inherit; font-size: 13.5px; color: var(--ink);
+    border-radius: 8px;
+  }
+  .search input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+
+  /* ─────────── skills list ─────────── */
+  .skills { list-style: none; margin: 0; padding: 6px 8px 12px; }
+  .skill {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 12px; align-items: start;
+    padding: 12px 10px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .skill:hover { background: var(--surface-2); }
+  .skill .mono { font-family: var(--mono); }
+  .skill .glyph {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: grid; place-items: center;
+    font: 600 12px var(--mono); letter-spacing: 0.04em;
+    background: var(--accent-soft); color: var(--accent-ink);
+  }
+  .skill .body { min-width: 0; }
+  .skill .name { font-weight: 600; font-size: 15px; }
+  .skill .desc {
+    color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 3px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .skill .row2 { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; align-items: center; }
+  .skill .tag {
+    font-size: 11px; padding: 2px 7px; border-radius: 999px;
+    background: var(--surface-2); color: var(--muted);
+  }
+  .skill .meta { text-align: right; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .skill .meta .sha { font-family: var(--mono); }
+  .skill .meta .installs {
+    display: inline-flex; align-items: center; gap: 5px;
+    color: var(--ink-2); font-weight: 500;
+  }
+  .skill .meta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  .skill .meta .dot.zero { background: var(--muted-2); }
+
+  /* ─────────── machines list ─────────── */
+  .machines { list-style: none; margin: 0; padding: 6px 8px 12px; }
+  .machine {
+    display: grid; grid-template-columns: 28px 1fr auto;
+    gap: 11px; align-items: center; padding: 11px 10px; border-radius: 8px;
+  }
+  .machine:hover { background: var(--surface-2); }
+  .machine .status {
+    position: relative; width: 28px; height: 28px; border-radius: 6px;
+    background: var(--paper); display: grid; place-items: center;
+  }
+  .machine .status svg { width: 14px; height: 14px; color: var(--muted); }
+  .machine .status .pulse {
+    position: absolute; right: -2px; bottom: -2px;
+    width: 9px; height: 9px; border-radius: 50%;
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+  .machine .info .host { font-weight: 600; font-size: 14px; }
+  .machine .info .sub {
+    margin-top: 3px; font-size: 11px; color: var(--muted); font-family: var(--mono);
+  }
+  .machine .nums { text-align: right; font-size: 12px; }
+  .machine .nums .pair { color: var(--ink-2); font-weight: 500; }
+  .machine .nums .warn { color: var(--warn); font-weight: 600; }
+  .machine .nums .age { color: var(--muted); font-size: 11px; margin-top: 3px; }
+
+  /* status dots */
+  .dot-live { background: var(--ok); }
+  .dot-recent { background: var(--accent); }
+  .dot-stale { background: var(--warn); }
+  .dot-gone { background: var(--muted-2); }
+
+  /* ─────────── modal ─────────── */
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(27, 24, 18, 0.45);
+    backdrop-filter: blur(2px); display: none; z-index: 50;
+    align-items: flex-start; justify-content: center; padding: 40px 20px;
+    overflow-y: auto;
+  }
+  .modal-back.open { display: flex; }
+  .modal {
+    width: 100%; max-width: 880px; background: var(--surface);
+    border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
+    margin-bottom: 40px;
+  }
+  .modal header {
+    padding: 22px 26px 20px;
+    background: linear-gradient(180deg, var(--accent-soft) 0%, var(--surface) 100%);
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: flex-start; gap: 16px;
+  }
+  .modal header .glyph {
+    width: 52px; height: 52px; border-radius: 10px;
+    display: grid; place-items: center;
+    background: var(--accent); color: white;
+    font: 600 16px var(--mono); flex-shrink: 0;
+  }
+  .modal header .titleBlock { flex: 1; min-width: 0; }
+  .modal header h3 {
+    margin: 0; font: 500 22px/1.15 var(--serif); letter-spacing: -0.01em;
+  }
+  .modal header .desc { margin-top: 6px; font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
+  .modal header .closeBtn {
+    width: 32px; height: 32px; border-radius: 8px; background: transparent;
+    border: none; cursor: pointer; color: var(--muted); font-size: 18px;
+  }
+  .modal header .closeBtn:hover { background: var(--surface-2); color: var(--ink); }
+
+  .modal .stripe {
+    display: flex; gap: 22px; padding: 12px 26px;
+    background: var(--paper); border-bottom: 1px solid var(--line);
+    font-size: 12px;
+  }
+  .modal .stripe .item .lbl {
+    font: 500 10px/1 var(--mono); letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .modal .stripe .item .val { margin-top: 4px; color: var(--ink); font-family: var(--mono); }
+  .modal .stripe .item.warn .val { color: var(--warn); font-weight: 600; }
+
+  .modal .body { display: grid; grid-template-columns: 1fr 280px; gap: 0; }
+  @media (max-width: 760px) { .modal .body { grid-template-columns: 1fr; } }
+
+  .modal .body .main { padding: 22px 26px 26px; border-right: 1px solid var(--line); }
+  .modal .body aside { padding: 22px 22px; }
+
+  .modal .sectionLabel {
+    font: 500 10px/1 var(--mono); letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+
+  .cmd-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 12px; font-family: var(--mono); font-size: 13px;
+  }
+  .cmd-row .prompt { color: var(--accent); }
+  .cmd-row code { user-select: all; flex: 1; }
+  .cmd-row .copy {
+    background: transparent; border: none; color: var(--muted); cursor: pointer;
+    font-size: 11px; padding: 2px 6px;
+  }
+  .cmd-row .copy:hover { color: var(--ink); }
+
+  /* version timeline */
+  .timeline { list-style: none; margin: 0; padding: 0 0 0 14px; position: relative; }
+  .timeline::before {
+    content: ""; position: absolute; left: 4px; top: 4px; bottom: 4px;
+    width: 1px; background: var(--line);
+  }
+  .timeline li { position: relative; padding: 0 0 12px; }
+  .timeline li::before {
+    content: ""; position: absolute; left: -14px; top: 5px;
+    width: 9px; height: 9px; border-radius: 50%; background: var(--muted-2);
+  }
+  .timeline li.head::before { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .timeline .msg { font-size: 13px; color: var(--ink); }
+  .timeline .sub { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+
+  /* install table */
+  .install-list { list-style: none; margin: 0; padding: 0; }
+  .install-list li {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    font-size: 12.5px; border-top: 1px dashed var(--line-2);
+  }
+  .install-list li:first-child { border-top: none; }
+  .install-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .install-list .sha { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .install-list .sha.stale { color: var(--warn); }
+  .install-list .stbadge {
+    font: 500 9.5px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--warn); background: var(--warn-soft); padding: 2px 5px; border-radius: 4px;
+  }
+
+  /* markdown */
+  .md { color: var(--ink); font-size: 14px; line-height: 1.65; }
+  .md > *:first-child { margin-top: 0; }
+  .md h1, .md h2, .md h3 { font-family: var(--serif); font-weight: 500; letter-spacing: -0.01em; }
+  .md h1 { font-size: 22px; margin: 18px 0 10px; }
+  .md h2 { font-size: 18px; margin: 16px 0 8px; color: var(--ink); }
+  .md h3 { font-size: 15px; margin: 14px 0 6px; }
+  .md p { margin: 8px 0; }
+  .md ul, .md ol { margin: 8px 0; padding-left: 22px; }
+  .md li { margin: 2px 0; }
+  .md code {
+    font-family: var(--mono); font-size: 12.5px;
+    background: var(--surface-2); padding: 1px 5px; border-radius: 4px;
+  }
+  .md pre {
+    background: #1c1a16; color: #f0eadc; padding: 12px 14px;
+    border-radius: 8px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px;
+    line-height: 1.55; margin: 10px 0;
+  }
+  .md pre code { background: transparent; color: inherit; padding: 0; }
+  .md blockquote {
+    margin: 8px 0; padding-left: 12px;
+    border-left: 3px solid var(--accent); color: var(--muted);
+  }
+  .md hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+  .md table {
+    border-collapse: collapse; margin: 10px 0; font-size: 13px;
+  }
+  .md table th, .md table td {
+    border: 1px solid var(--line); padding: 5px 10px; text-align: left;
+  }
+  .md table th { background: var(--surface-2); font-weight: 600; }
+
+  /* empty / loading */
+  .empty {
+    padding: 40px 16px; text-align: center; color: var(--muted);
+    font-size: 13px;
+  }
+  .empty code {
+    display: inline-block; margin-top: 8px;
+    background: var(--surface-2); padding: 5px 10px; border-radius: 6px;
+    font-size: 11.5px; color: var(--ink-2);
+  }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: var(--paper); font-size: 12.5px;
+    padding: 8px 14px; border-radius: 8px; box-shadow: var(--shadow);
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="top">
+    <div>
+      <div class="lockup">
+        <h1><span class="accent">sync</span>-skill</h1>
+        <span class="badge" id="hdrSkillCount">— skills</span>
+      </div>
+      <div class="sub">跨机器同步 agent skills · GitHub 仓库为唯一真相</div>
+    </div>
+    <div class="meta">
+      <div>indexed from <code id="hdrRepo">—</code></div>
+      <button id="refreshBtn">Refresh ↻</button>
+    </div>
+  </header>
+
+  <section class="kpis">
+    <div class="kpi"><div class="label">Skills</div><div class="value" id="kSkills">—</div><div class="hint">published in registry</div></div>
+    <div class="kpi accent"><div class="label">Machines</div><div class="value" id="kMachines">—</div><div class="hint">registered & reporting</div></div>
+    <div class="kpi ok"><div class="label">Installs</div><div class="value" id="kInstalls">—</div><div class="hint">total skill·machine pairs</div></div>
+    <div class="kpi warn"><div class="label">Out of date</div><div class="value" id="kStale">—</div><div class="hint">installed but older than HEAD</div></div>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <header>
+        <h2>Skills</h2>
+        <span class="count" id="cntSkills">—</span>
+      </header>
+      <div class="search">
+        <input id="search" placeholder="Search skills by name or description…" autocomplete="off" />
+      </div>
+      <ul class="skills" id="skillsList"></ul>
+    </section>
+
+    <section class="panel">
+      <header>
+        <h2>Machines</h2>
+        <span class="count" id="cntMachines">—</span>
+      </header>
+      <ul class="machines" id="machinesList"></ul>
+    </section>
+  </div>
+</div>
+
+<div class="modal-back" id="modalBack" role="dialog" aria-modal="true">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ─────────── helpers ───────────
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const short = (s, n = 7) => (s || "").slice(0, n);
+  const ago = (iso) => {
+    if (!iso) return "—";
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return iso;
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 60) return Math.round(s) + "s ago";
+    if (s < 3600) return Math.round(s / 60) + "m ago";
+    if (s < 86400) return Math.round(s / 3600) + "h ago";
+    if (s < 86400 * 30) return Math.round(s / 86400) + "d ago";
+    return new Date(iso).toLocaleDateString();
+  };
+  const fresh = (iso) => {
+    if (!iso) return "gone";
+    const s = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (s < 300) return "live";
+    if (s < 3600) return "recent";
+    if (s < 86400) return "stale";
+    return "gone";
+  };
+  const initials = (s) => {
+    const parts = String(s).split(/[-_\s]+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return s.slice(0, 2).toUpperCase();
+  };
+
+  function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg; el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove("show"), 1600);
+  }
+
+  // ─────────── tiny markdown ───────────
+  function renderMd(src) {
+    if (!src) return "";
+    src = String(src);
+    // strip leading frontmatter
+    src = src.replace(/^---\n[\s\S]*?\n---\n?/, "");
+    const lines = src.split(/\r?\n/);
+    let out = "", i = 0;
+    const flushPara = (buf) => {
+      if (!buf.length) return "";
+      const text = buf.join(" ");
+      return "<p>" + inline(text) + "</p>";
+    };
+    const inline = (s) => {
+      s = esc(s);
+      // inline code
+      s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+      // bold
+      s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      // italic (cautious — single * surrounded by non-space)
+      s = s.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?=[^*]|$)/g, "$1<em>$2</em>");
+      // links [t](u)
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+      return s;
+    };
+
+    let paraBuf = [];
+    const flushP = () => { if (paraBuf.length) { out += flushPara(paraBuf); paraBuf = []; } };
+
+    while (i < lines.length) {
+      const raw = lines[i];
+      const line = raw.replace(/\s+$/, "");
+
+      // code fence
+      if (/^```/.test(line)) {
+        flushP();
+        let body = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])) {
+          body.push(lines[i]);
+          i++;
+        }
+        i++; // skip closing ```
+        out += "<pre><code>" + esc(body.join("\n")) + "</code></pre>";
+        continue;
+      }
+
+      // heading
+      const h = /^(#{1,3})\s+(.*)$/.exec(line);
+      if (h) {
+        flushP();
+        const lv = h[1].length;
+        out += "<h" + lv + ">" + inline(h[2]) + "</h" + lv + ">";
+        i++;
+        continue;
+      }
+
+      // hr
+      if (/^---+$/.test(line)) {
+        flushP();
+        out += "<hr/>";
+        i++;
+        continue;
+      }
+
+      // unordered list
+      if (/^\s*[-*]\s+/.test(line)) {
+        flushP();
+        let items = [];
+        while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+          items.push(lines[i].replace(/^\s*[-*]\s+/, ""));
+          i++;
+        }
+        out += "<ul>" + items.map((it) => "<li>" + inline(it) + "</li>").join("") + "</ul>";
+        continue;
+      }
+
+      // ordered list
+      if (/^\s*\d+\.\s+/.test(line)) {
+        flushP();
+        let items = [];
+        while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+          items.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
+          i++;
+        }
+        out += "<ol>" + items.map((it) => "<li>" + inline(it) + "</li>").join("") + "</ol>";
+        continue;
+      }
+
+      // blockquote
+      if (/^>\s?/.test(line)) {
+        flushP();
+        let buf = [];
+        while (i < lines.length && /^>\s?/.test(lines[i])) {
+          buf.push(lines[i].replace(/^>\s?/, ""));
+          i++;
+        }
+        out += "<blockquote>" + inline(buf.join(" ")) + "</blockquote>";
+        continue;
+      }
+
+      // blank line → paragraph break
+      if (line === "") {
+        flushP();
+        i++; continue;
+      }
+
+      paraBuf.push(line.trim());
+      i++;
+    }
+    flushP();
+    return out;
+  }
+
+  // ─────────── api ───────────
+  const api = {
+    skills: () => fetch("/api/skills").then((r) => r.json()),
+    skill: (n) => fetch("/api/skills/" + encodeURIComponent(n)).then((r) => r.json()),
+    machines: () => fetch("/api/machines").then((r) => r.json()),
+    refresh: () => fetch("/api/refresh", { method: "POST" }).then((r) => r.json()),
+  };
+
+  // ─────────── state ───────────
+  const state = { skills: [], machines: [], q: "" };
+
+  // ─────────── render: skills list ───────────
+  function renderSkills() {
+    const list = $("skillsList");
+    const q = state.q.toLowerCase().trim();
+    const items = state.skills.filter((s) => {
+      if (!q) return true;
+      return (
+        s.name.toLowerCase().includes(q) ||
+        (s.description || "").toLowerCase().includes(q) ||
+        (s.tags || []).some((t) => t.toLowerCase().includes(q))
+      );
+    });
+
+    $("cntSkills").textContent = items.length === state.skills.length
+      ? state.skills.length + ""
+      : items.length + " of " + state.skills.length;
+
+    if (!items.length) {
+      list.innerHTML = '<li><div class="empty">' +
+        (state.skills.length === 0
+          ? '尚无技能发布。<br/><code>sync-skill publish ./my-skill</code>'
+          : '无匹配项') +
+        '</div></li>';
+      return;
+    }
+
+    list.innerHTML = items.map((s) => {
+      const tags = (s.tags || []).slice(0, 3).map((t) => '<span class="tag">' + esc(t) + '</span>').join("");
+      const desc = (s.description || "").trim();
+      return (
+        '<li class="skill" data-name="' + esc(s.name) + '">' +
+          '<div class="glyph">' + esc(initials(s.name)) + '</div>' +
+          '<div class="body">' +
+            '<div class="name">' + esc(s.name) + '</div>' +
+            '<div class="desc">' + esc(desc) + '</div>' +
+            (tags ? '<div class="row2">' + tags + '</div>' : "") +
+          '</div>' +
+          '<div class="meta">' +
+            '<div class="installs"><span class="dot ' + (s.install_count ? "" : "zero") + '"></span>' + s.install_count + ' install' + (s.install_count === 1 ? "" : "s") + '</div>' +
+            '<div class="sha">' + short(s.latest_commit) + '</div>' +
+            '<div style="margin-top:3px;">' + ago(s.updated_at) + '</div>' +
+          '</div>' +
+        '</li>'
+      );
+    }).join("");
+
+    list.querySelectorAll(".skill").forEach((el) => {
+      el.addEventListener("click", () => openSkill(el.dataset.name));
+    });
+  }
+
+  // ─────────── render: machines ───────────
+  function renderMachines() {
+    const ul = $("machinesList");
+    $("cntMachines").textContent = state.machines.length + "";
+    if (!state.machines.length) {
+      ul.innerHTML = '<li><div class="empty">尚无机器注册。<br/><code>python3 ~/.claude/skills/sync-skill/scripts/init.py ...</code></div></li>';
+      return;
+    }
+    ul.innerHTML = state.machines.map((m) => {
+      const f = fresh(m.last_seen_at);
+      return (
+        '<li class="machine">' +
+          '<div class="status">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>' +
+            '<span class="pulse dot-' + f + '"></span>' +
+          '</div>' +
+          '<div class="info">' +
+            '<div class="host">' + esc(m.hostname || "—") + '</div>' +
+            '<div class="sub">' + esc(m.runtime || "—") + ' · ' + short(m.id, 8) + '</div>' +
+          '</div>' +
+          '<div class="nums">' +
+            '<div class="pair">' + m.installed_count + ' / ' +
+              (m.stale_count > 0 ? '<span class="warn">' + m.stale_count + ' stale</span>' : '0 stale') +
+            '</div>' +
+            '<div class="age">' + ago(m.last_seen_at) + '</div>' +
+          '</div>' +
+        '</li>'
+      );
+    }).join("");
+  }
+
+  // ─────────── modal ───────────
+  async function openSkill(name) {
+    const back = $("modalBack");
+    const modal = $("modal");
+    modal.innerHTML = '<div class="empty" style="padding:60px;">Loading…</div>';
+    back.classList.add("open");
+    document.body.style.overflow = "hidden";
+
+    try {
+      const d = await api.skill(name);
+      const stale = (d.installs || []).filter((i) => i.commit_sha && i.commit_sha !== d.latest_commit);
+      const tags = (d.tags || []).map((t) => '<span class="tag" style="margin-right:4px">' + esc(t) + '</span>').join("");
+      modal.innerHTML =
+        '<header>' +
+          '<div class="glyph">' + esc(initials(d.name)) + '</div>' +
+          '<div class="titleBlock">' +
+            '<h3>' + esc(d.name) + '</h3>' +
+            (tags ? '<div style="margin-top:6px;">' + tags + '</div>' : "") +
+            (d.description ? '<div class="desc">' + esc(d.description) + '</div>' : "") +
+          '</div>' +
+          '<button class="closeBtn" id="closeBtn" title="Close">✕</button>' +
+        '</header>' +
+        '<div class="stripe">' +
+          '<div class="item"><div class="lbl">Latest</div><div class="val">' + short(d.latest_commit) + '</div></div>' +
+          '<div class="item"><div class="lbl">Updated</div><div class="val" style="font-family:inherit;">' + ago(d.updated_at) + '</div></div>' +
+          '<div class="item"><div class="lbl">Installed on</div><div class="val" style="font-family:inherit;">' + (d.installs || []).length + ' machine' + ((d.installs || []).length === 1 ? "" : "s") + '</div></div>' +
+          (stale.length
+            ? '<div class="item warn"><div class="lbl">Stale</div><div class="val" style="font-family:inherit;">' + stale.length + '</div></div>'
+            : '<div class="item"><div class="lbl">Stale</div><div class="val" style="font-family:inherit;color:var(--ok)">none</div></div>') +
+        '</div>' +
+        '<div class="body">' +
+          '<div class="main">' +
+            '<div class="cmd-row" style="margin-bottom:18px;">' +
+              '<span class="prompt">$</span>' +
+              '<code>sync-skill pull ' + esc(d.name) + '</code>' +
+              '<button class="copy" data-copy="sync-skill pull ' + esc(d.name) + '">copy</button>' +
+            '</div>' +
+            '<div class="sectionLabel">SKILL.md</div>' +
+            '<div class="md">' + renderMd(d.readme_md || "") + '</div>' +
+          '</div>' +
+          '<aside>' +
+            '<div class="sectionLabel">Installed on (' + (d.installs || []).length + ')</div>' +
+            ((d.installs || []).length
+              ? '<ul class="install-list">' + d.installs.map((i) => {
+                  const isStale = i.commit_sha && i.commit_sha !== d.latest_commit;
+                  return '<li>' +
+                    '<span class="name">' + esc(i.hostname || "—") + '<span style="color:var(--muted);font-size:11px"> · ' + esc(i.runtime || "—") + '</span></span>' +
+                    (isStale ? '<span class="stbadge">stale</span>' : "") +
+                    '<span class="sha' + (isStale ? ' stale' : '') + '">' + short(i.commit_sha) + '</span>' +
+                  '</li>';
+                }).join("") + '</ul>'
+              : '<div style="font-size:12.5px;color:var(--muted);">No machines have this skill yet.</div>'
+            ) +
+            '<div class="sectionLabel" style="margin-top:22px;">Version history</div>' +
+            ((d.versions || []).length
+              ? '<ul class="timeline">' + d.versions.slice(0, 12).map((v, idx) => {
+                  return '<li' + (idx === 0 ? ' class="head"' : "") + '>' +
+                    '<div class="msg">' + esc(v.message || "(no message)") + '</div>' +
+                    '<div class="sub">' + short(v.commit_sha) + ' · ' + ago(v.committed_at) + '</div>' +
+                  '</li>';
+                }).join("") + '</ul>'
+              : '<div style="font-size:12.5px;color:var(--muted);">No commits yet.</div>'
+            ) +
+          '</aside>' +
+        '</div>';
+
+      $("closeBtn").onclick = closeModal;
+      modal.querySelectorAll(".copy").forEach((b) => {
+        b.onclick = () => {
+          navigator.clipboard.writeText(b.dataset.copy).then(() => toast("Copied"));
+        };
+      });
+    } catch (e) {
+      modal.innerHTML = '<div class="empty" style="padding:60px;color:var(--bad)">' + esc(String(e)) + '</div>';
+    }
+  }
+  function closeModal() {
+    $("modalBack").classList.remove("open");
+    document.body.style.overflow = "";
+  }
+  $("modalBack").addEventListener("click", (e) => { if (e.target === $("modalBack")) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  // ─────────── KPI update ───────────
+  function updateKpis() {
+    $("kSkills").textContent = state.skills.length + "";
+    $("kMachines").textContent = state.machines.length + "";
+    $("kInstalls").textContent = state.machines.reduce((a, m) => a + m.installed_count, 0) + "";
+    $("kStale").textContent = state.machines.reduce((a, m) => a + m.stale_count, 0) + "";
+    $("hdrSkillCount").textContent = state.skills.length + " skills";
+  }
+
+  // ─────────── boot ───────────
+  async function loadAll() {
+    try {
+      const [a, b] = await Promise.all([api.skills(), api.machines()]);
+      state.skills = a.skills || [];
+      state.machines = b.machines || [];
+      updateKpis();
+      renderSkills();
+      renderMachines();
+    } catch (e) {
+      toast("Load failed: " + e);
+    }
+  }
+
+  $("search").addEventListener("input", (e) => {
+    state.q = e.target.value; renderSkills();
+  });
+  $("refreshBtn").addEventListener("click", async () => {
+    $("refreshBtn").textContent = "Refreshing…";
+    try { await api.refresh(); } catch (e) { /* ignore */ }
+    await loadAll();
+    $("refreshBtn").textContent = "Refresh ↻";
+    toast("Reindexed");
+  });
+
+  // Discover repo for header (best effort from /api/skills latest_commit – we just show a placeholder)
+  fetch("/api/skills").then((r) => r.json()).then(() => {
+    $("hdrRepo").textContent = "Restry/skills";
+  });
+
+  loadAll();
+  setInterval(loadAll, 30000); // gentle refresh
+</script>
+</body>
 </html>
