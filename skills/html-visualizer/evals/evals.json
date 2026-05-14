@@ -1,0 +1,23 @@
+{
+  "skill_name": "html-visualizer",
+  "evals": [
+    {
+      "id": 0,
+      "name": "devhub-module-map",
+      "prompt": "我在做一个叫 devhub 的 Next.js + tRPC 项目（路径 /home/restry/projects/nexora-devhub-claude）。帮我画一张模块依赖图，给新加入的同事看，让他 30 秒内看懂这个项目的骨架。\n\n核心模块：\n\n服务端 routers（src/server/routers/）：\n- project.ts — 项目 CRUD、git clone、文件树、memory 读写\n- task.ts — 派活到 mattermost bot、轮询状态、reconcile\n- env.ts — dev server 启停、端口管理、环境变量、依赖容器\n- agent.ts — bot 增删改、同步 SOUL.md\n- settings.ts、conversation.ts、notification.ts、hermes.ts\n\n共享库（src/lib/）：\n- gitprovider.ts — GitHub/GitLab API + 本地 git\n- devprocess.ts — spawn 子进程、端口探测、kill\n- mattermost.ts — bot 通信、channel、post\n- memory.ts — .devhub/memory/ 读写 + INDEX.md\n- prd.ts、filetree.ts、vault.ts、taskschema.ts、defaultAgentPrompt.ts\n\n前端（src/app/）：\n- /workspace/[projectId]/page.tsx — 主工作区（聊天、文件树、env、memory、terminal）\n- /projects/new/page.tsx — 新建项目\n- /settings/page.tsx — 全局设置 + agent prompt 同步\n\n依赖关系大致：app 调 routers，routers 调 lib，lib 之间也有调用（比如 task 用 mattermost + memory + prd）。\n\n把它做成一份能在浏览器打开的图。",
+      "expected_output": "self-contained HTML 文件，包含 SVG 模块图，分层（前端/路由/库）+ 箭头，标出关键入口和热点模块"
+    },
+    {
+      "id": 1,
+      "name": "pr-annotated-review",
+      "prompt": "帮我把下面这段 diff 渲染成一个可以在浏览器打开的代码评审页，左边是带行号的 diff，右边是评审注释（按严重程度标颜色），注释要锚定到具体行。\n\ndiff --git a/src/lib/devprocess.ts b/src/lib/devprocess.ts\n@@ -45,12 +45,30 @@\n export async function findPortListener(port: number): Promise<PortListener | null> {\n-  const { stdout } = await execa('lsof', ['-iTCP', `-i:${port}`, '-sTCP:LISTEN', '-t']);\n-  const pid = parseInt(stdout.trim(), 10);\n-  if (!pid) return null;\n-  const cmdline = await fs.readFile(`/proc/${pid}/cmdline`, 'utf8');\n-  return { pid, command: cmdline.replace(/\\0/g, ' ').trim() };\n+  try {\n+    const { stdout } = await execa('ss', ['-ltnpH', `sport = :${port}`]);\n+    const m = stdout.match(/pid=(\\d+)/);\n+    if (m) {\n+      const pid = parseInt(m[1], 10);\n+      const cmdline = await fs.readFile(`/proc/${pid}/cmdline`, 'utf8').catch(() => '');\n+      return { pid, command: cmdline.replace(/\\0/g, ' ').trim() };\n+    }\n+  } catch {}\n+  try {\n+    const { stdout } = await execa('lsof', ['-iTCP', `-i:${port}`, '-sTCP:LISTEN', '-t']);\n+    const pid = parseInt(stdout.trim(), 10);\n+    if (!pid) return null;\n+    const cmdline = await fs.readFile(`/proc/${pid}/cmdline`, 'utf8').catch(() => '');\n+    return { pid, command: cmdline.replace(/\\0/g, ' ').trim() };\n+  } catch {\n+    return null;\n+  }\n }\n\n@@ -120,6 +138,15 @@\n export async function startDev(opts: StartOpts): Promise<ProcInfo> {\n+  if (opts.port && !await isPortFree(opts.port)) {\n+    const owner = await findPortListener(opts.port);\n+    if (owner && opts.force) {\n+      await killPortListener(opts.port);\n+    } else if (owner) {\n+      throw new PortBusyError(opts.port, owner);\n+    }\n+  }\n   const child = spawn('sh', ['-c', opts.command], { ... });\n\n请把每个 hunk 标几个评审意见（bug / nit / question / praise），至少 4-5 条注释。",
+      "expected_output": "self-contained HTML，左侧 diff（带行号、添加/删除着色），右侧 margin notes 锚定行号，注释带颜色 pill 区分严重度"
+    },
+    {
+      "id": 2,
+      "name": "option-tradeoff-compare",
+      "prompt": "devhub 的 dev server 启动逻辑遇到端口冲突时有 3 种处理方案，帮我做一张并排对比图，给团队看了好做决策。\n\n方案 A — 直接报错：发现端口被占就抛错给用户，让他手动 kill。简单但需要用户去命令行 ss/lsof 自己排查。\n方案 B — 自动换端口：用 findFreePort() 自动找一个空闲端口起服务。零摩擦但用户事先约定的端口（写在 .env 里的）就失效了。\n方案 C — 检测占用者 + UI 确认：探测占用的进程，把进程信息抛回前端，弹个 toast 让用户决定要不要 kill 后重启。最贴心但要写更多代码（检测进程、TRPCError CONFLICT、前端 toast action button、force=true 重试）。\n\n对比维度：实现复杂度、用户摩擦、误杀风险、可观测性、跟现有 force 标志的兼容。\n\n输出一份能在浏览器打开的对比页，我推荐 C，要标出来。",
+      "expected_output": "self-contained HTML，CSS grid 三列对比表，按维度逐行对照，推荐方案有视觉强调（pill / 背景色）"
+    }
+  ]
+}
