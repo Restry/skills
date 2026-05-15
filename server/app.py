@@ -81,6 +81,64 @@ def health():
     return {"ok": True}
 
 
+def _skill_root(name: str) -> Path:
+    if not name or "/" in name or name.startswith(".") or name in ("..",):
+        raise HTTPException(400, "bad name")
+    root = (CLONE_DIR / "skills" / name).resolve()
+    base = (CLONE_DIR / "skills").resolve()
+    if not str(root).startswith(str(base) + os.sep) and root != base:
+        raise HTTPException(400, "bad name")
+    if not root.is_dir():
+        raise HTTPException(404, "skill not found")
+    return root
+
+
+_TEXT_EXT = {
+    ".md", ".py", ".sh", ".bash", ".zsh", ".js", ".mjs", ".cjs", ".ts", ".tsx",
+    ".jsx", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+    ".txt", ".rst", ".html", ".css", ".csv", ".tsv", ".dot", ".sql",
+    ".env", ".gitignore", ".gitattributes", "",
+}
+
+
+@app.get("/api/skills/{name}/files")
+def api_skill_files(name: str):
+    root = _skill_root(name)
+    out = []
+    for p in sorted(root.rglob("*")):
+        if any(part == ".git" or part.startswith(".") and part not in (".gitignore", ".gitattributes", ".env.example") for part in p.relative_to(root).parts):
+            continue
+        if p.is_dir():
+            continue
+        try:
+            size = p.stat().st_size
+        except OSError:
+            continue
+        rel = p.relative_to(root).as_posix()
+        out.append({"path": rel, "size": size, "is_text": p.suffix.lower() in _TEXT_EXT})
+    return {"name": name, "files": out}
+
+
+@app.get("/api/skills/{name}/file")
+def api_skill_file(name: str, path: str):
+    root = _skill_root(name)
+    target = (root / path).resolve()
+    if not str(target).startswith(str(root) + os.sep):
+        raise HTTPException(400, "bad path")
+    if not target.is_file():
+        raise HTTPException(404, "not found")
+    size = target.stat().st_size
+    if size > 512 * 1024:
+        return {"path": path, "size": size, "truncated": True, "content": ""}
+    try:
+        content = target.read_text(encoding="utf-8")
+        is_text = True
+    except UnicodeDecodeError:
+        content = ""
+        is_text = False
+    return {"path": path, "size": size, "truncated": False, "is_text": is_text, "content": content}
+
+
 # Serve web build if present
 if WEB_DIST.exists():
     app.mount("/", StaticFiles(directory=str(WEB_DIST), html=True), name="web")

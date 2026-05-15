@@ -155,6 +155,22 @@
     font-size: 11px; padding: 2px 7px; border-radius: 999px;
     background: var(--surface-2); color: var(--muted);
   }
+  .tagbar {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 0 18px 12px; border-bottom: 1px solid var(--line);
+  }
+  .tagbar:empty { display: none; }
+  .tagbar .chip {
+    font: 500 11px/1.2 var(--mono); letter-spacing: 0.02em;
+    padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    background: var(--surface-2); color: var(--ink-2);
+    border: 1px solid transparent; user-select: none;
+  }
+  .tagbar .chip:hover { color: var(--ink); }
+  .tagbar .chip.active {
+    background: var(--accent); color: white;
+  }
+  .tagbar .chip .n { opacity: 0.7; margin-left: 4px; font-size: 10px; }
   .skill .meta { text-align: right; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
   .skill .meta .sha { font-family: var(--mono); }
   .skill .meta .installs {
@@ -196,24 +212,34 @@
   .dot-stale { background: var(--warn); }
   .dot-gone { background: var(--muted-2); }
 
-  /* ─────────── modal ─────────── */
+  /* ─────────── drawer (right-side slide-out) ─────────── */
   .modal-back {
-    position: fixed; inset: 0; background: rgba(27, 24, 18, 0.45);
-    backdrop-filter: blur(2px); display: none; z-index: 50;
-    align-items: flex-start; justify-content: center; padding: 40px 20px;
-    overflow-y: auto;
+    position: fixed; inset: 0; background: rgba(27, 24, 18, 0);
+    backdrop-filter: blur(0px); z-index: 50;
+    pointer-events: none;
+    transition: background 200ms ease, backdrop-filter 200ms ease;
   }
-  .modal-back.open { display: flex; }
+  .modal-back.open {
+    pointer-events: auto;
+    background: rgba(27, 24, 18, 0.35);
+    backdrop-filter: blur(2px);
+  }
   .modal {
-    width: 100%; max-width: 880px; background: var(--surface);
-    border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
-    margin-bottom: 40px;
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(880px, 100vw); background: var(--surface);
+    box-shadow: -16px 0 48px rgba(27, 24, 18, 0.18);
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 260ms cubic-bezier(.22,.61,.36,1);
+    display: flex; flex-direction: column;
   }
+  .modal-back.open .modal { transform: translateX(0); }
   .modal header {
     padding: 22px 26px 20px;
     background: linear-gradient(180deg, var(--accent-soft) 0%, var(--surface) 100%);
     border-bottom: 1px solid var(--line);
     display: flex; align-items: flex-start; gap: 16px;
+    flex-shrink: 0;
   }
   .modal header .glyph {
     width: 52px; height: 52px; border-radius: 10px;
@@ -235,7 +261,7 @@
   .modal .stripe {
     display: flex; gap: 22px; padding: 12px 26px;
     background: var(--paper); border-bottom: 1px solid var(--line);
-    font-size: 12px;
+    font-size: 12px; flex-shrink: 0;
   }
   .modal .stripe .item .lbl {
     font: 500 10px/1 var(--mono); letter-spacing: 0.06em;
@@ -244,11 +270,48 @@
   .modal .stripe .item .val { margin-top: 4px; color: var(--ink); font-family: var(--mono); }
   .modal .stripe .item.warn .val { color: var(--warn); font-weight: 600; }
 
-  .modal .body { display: grid; grid-template-columns: 1fr 280px; gap: 0; }
+  .modal .body {
+    display: grid; grid-template-columns: 1fr 280px; gap: 0;
+    flex: 1; min-height: 0; overflow-y: auto;
+  }
   @media (max-width: 760px) { .modal .body { grid-template-columns: 1fr; } }
 
-  .modal .body .main { padding: 22px 26px 26px; border-right: 1px solid var(--line); }
+  .modal .body .main { padding: 22px 26px 26px; border-right: 1px solid var(--line); min-width: 0; }
   .modal .body aside { padding: 22px 22px; }
+
+  /* file tree */
+  .files {
+    border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
+    margin-bottom: 18px; overflow: hidden;
+  }
+  .files .file {
+    display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+    font: 12.5px/1.3 var(--mono); cursor: pointer; color: var(--ink-2);
+    border-top: 1px dashed var(--line-2); user-select: none;
+  }
+  .files .file:first-child { border-top: none; }
+  .files .file:hover { background: var(--surface-2); color: var(--ink); }
+  .files .file.active { background: var(--accent-soft); color: var(--ink); }
+  .files .file .path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .files .file .size { color: var(--muted); font-size: 11px; }
+  .files .file .icon { color: var(--muted-2); font-size: 11px; width: 12px; text-align: center; }
+  .file-viewer {
+    border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
+    overflow: hidden;
+  }
+  .file-viewer .vh {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    font: 12px var(--mono); color: var(--ink-2);
+  }
+  .file-viewer .vh .path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-viewer pre {
+    margin: 0; padding: 14px 16px; max-height: 520px; overflow: auto;
+    font: 12.5px/1.55 var(--mono); color: var(--ink); background: var(--paper);
+    white-space: pre; tab-size: 2;
+  }
+  .file-viewer .binary { padding: 18px; color: var(--muted); font-size: 12.5px; }
 
   .modal .sectionLabel {
     font: 500 10px/1 var(--mono); letter-spacing: 0.08em;
@@ -383,6 +446,7 @@
       <div class="search">
         <input id="search" placeholder="Search skills by name or description…" autocomplete="off" />
       </div>
+      <div class="tagbar" id="tagBar"></div>
       <ul class="skills" id="skillsList"></ul>
     </section>
 
@@ -558,18 +622,48 @@
   const api = {
     skills: () => fetch("/api/skills").then((r) => r.json()),
     skill: (n) => fetch("/api/skills/" + encodeURIComponent(n)).then((r) => r.json()),
+    files: (n) => fetch("/api/skills/" + encodeURIComponent(n) + "/files").then((r) => r.json()),
+    file: (n, p) => fetch("/api/skills/" + encodeURIComponent(n) + "/file?path=" + encodeURIComponent(p)).then((r) => r.json()),
     machines: () => fetch("/api/machines").then((r) => r.json()),
     refresh: () => fetch("/api/refresh", { method: "POST" }).then((r) => r.json()),
   };
 
+  function fmtBytes(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " K";
+    return (n / 1024 / 1024).toFixed(1) + " M";
+  }
+
   // ─────────── state ───────────
-  const state = { skills: [], machines: [], q: "" };
+  const state = { skills: [], machines: [], q: "", tag: "" };
 
   // ─────────── render: skills list ───────────
+  function renderTagBar() {
+    const bar = $("tagBar");
+    if (!bar) return;
+    const counts = new Map();
+    for (const s of state.skills) {
+      for (const t of (s.tags || [])) counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    const tags = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    if (!tags.length) { bar.innerHTML = ""; return; }
+    const chips = [
+      '<span class="chip' + (state.tag === "" ? " active" : "") + '" data-tag="">All<span class="n">' + state.skills.length + '</span></span>',
+      ...tags.map(([t, n]) =>
+        '<span class="chip' + (state.tag === t ? " active" : "") + '" data-tag="' + esc(t) + '">' + esc(t) + '<span class="n">' + n + '</span></span>'
+      ),
+    ];
+    bar.innerHTML = chips.join("");
+    bar.querySelectorAll(".chip").forEach((el) => {
+      el.onclick = () => { state.tag = el.dataset.tag; renderTagBar(); renderSkills(); };
+    });
+  }
+
   function renderSkills() {
     const list = $("skillsList");
     const q = state.q.toLowerCase().trim();
     const items = state.skills.filter((s) => {
+      if (state.tag && !(s.tags || []).includes(state.tag)) return false;
       if (!q) return true;
       return (
         s.name.toLowerCase().includes(q) ||
@@ -684,6 +778,9 @@
               '<code>sync-skill pull ' + esc(d.name) + '</code>' +
               '<button class="copy" data-copy="sync-skill pull ' + esc(d.name) + '">copy</button>' +
             '</div>' +
+            '<div class="sectionLabel">Files</div>' +
+            '<div class="files" id="fileList"><div class="empty" style="padding:14px;font-size:12px;color:var(--muted);">Loading…</div></div>' +
+            '<div class="file-viewer" id="fileViewer" style="margin-bottom:18px;display:none;"></div>' +
             '<div class="sectionLabel">SKILL.md</div>' +
             '<div class="md">' + renderMd(d.readme_md || "") + '</div>' +
           '</div>' +
@@ -719,6 +816,7 @@
           navigator.clipboard.writeText(b.dataset.copy).then(() => toast("Copied"));
         };
       });
+      loadFiles(d.name);
     } catch (e) {
       modal.innerHTML = '<div class="empty" style="padding:60px;color:var(--bad)">' + esc(String(e)) + '</div>';
     }
@@ -726,6 +824,64 @@
   function closeModal() {
     $("modalBack").classList.remove("open");
     document.body.style.overflow = "";
+  }
+
+  async function loadFiles(name) {
+    const list = $("fileList");
+    if (!list) return;
+    try {
+      const d = await api.files(name);
+      const files = d.files || [];
+      if (!files.length) {
+        list.innerHTML = '<div class="empty" style="padding:14px;font-size:12px;color:var(--muted);">No files.</div>';
+        return;
+      }
+      list.innerHTML = files.map((f) =>
+        '<div class="file" data-path="' + esc(f.path) + '">' +
+          '<span class="icon">' + (f.is_text ? '·' : '◧') + '</span>' +
+          '<span class="path">' + esc(f.path) + '</span>' +
+          '<span class="size">' + fmtBytes(f.size) + '</span>' +
+        '</div>'
+      ).join("");
+      list.querySelectorAll(".file").forEach((el) => {
+        el.onclick = () => openFile(name, el.dataset.path, el);
+      });
+      const preferred = files.find((f) => f.path === "SKILL.md") || files[0];
+      if (preferred) {
+        const el = list.querySelector('.file[data-path="' + cssEsc(preferred.path) + '"]');
+        if (el) openFile(name, preferred.path, el);
+      }
+    } catch (e) {
+      list.innerHTML = '<div class="empty" style="padding:14px;font-size:12px;color:var(--bad);">' + esc(String(e)) + '</div>';
+    }
+  }
+
+  function cssEsc(s) { return s.replace(/(["\\])/g, "\\$1"); }
+
+  async function openFile(name, path, el) {
+    const viewer = $("fileViewer");
+    if (!viewer) return;
+    $("fileList").querySelectorAll(".file").forEach((x) => x.classList.remove("active"));
+    if (el) el.classList.add("active");
+    viewer.style.display = "block";
+    viewer.innerHTML =
+      '<div class="vh"><span class="path">' + esc(path) + '</span><span>loading…</span></div>';
+    try {
+      const d = await api.file(name, path);
+      let inner;
+      if (d.truncated) {
+        inner = '<div class="binary">File too large (' + fmtBytes(d.size) + '). Truncated.</div>';
+      } else if (d.is_text === false) {
+        inner = '<div class="binary">Binary file (' + fmtBytes(d.size) + ')</div>';
+      } else {
+        inner = '<pre>' + esc(d.content || "") + '</pre>';
+      }
+      viewer.innerHTML =
+        '<div class="vh"><span class="path">' + esc(path) + '</span><span>' + fmtBytes(d.size) + '</span></div>' +
+        inner;
+    } catch (e) {
+      viewer.innerHTML = '<div class="vh"><span class="path">' + esc(path) + '</span></div><div class="binary" style="color:var(--bad)">' + esc(String(e)) + '</div>';
+    }
   }
   $("modalBack").addEventListener("click", (e) => { if (e.target === $("modalBack")) closeModal(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
@@ -746,6 +902,7 @@
       state.skills = a.skills || [];
       state.machines = b.machines || [];
       updateKpis();
+      renderTagBar();
       renderSkills();
       renderMachines();
     } catch (e) {
