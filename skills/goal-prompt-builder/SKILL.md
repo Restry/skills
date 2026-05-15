@@ -1,5 +1,6 @@
 ---
 name: goal-prompt-builder
+tags: [codex, prompt-engineering]
 description: Build high-quality /goal commands for OpenAI Codex CLI 0.128+ that maximize audit-friendliness and minimize false-completion. Use this skill whenever the user wants to write, draft, generate, improve, or refine a /goal prompt — even if they don't say "skill" — including phrases like "help me write a goal", "design a goal for X", "review my goal command", "make a goal for this repo", or any request involving long-running Codex tasks. Also trigger when the user mentions Ralph loop, persistent agent objectives, or asks Codex to "keep working until done". Produces a complete, copy-pasteable /goal command using the 5-section golden template (Objective/Scope/Constraints/Done when/Stop if), supports three interaction modes (step-by-step, full-description, hybrid), auto-detects project type (Node/Python/Swift/Go/Rust/static) by inspecting filesystem or repo URL, reads AGENTS.md/CLAUDE.md if present, and predicts audit-friendliness before output.
 ---
 

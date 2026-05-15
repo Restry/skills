@@ -1,5 +1,6 @@
 ---
 name: html-visualizer
+tags: [docs, visualization]
 description: Produce a self-contained HTML file when the answer carries spatial or relational structure — diffs with reviewer notes, module/architecture maps, side-by-side option comparisons, timelines, flowcharts, kanban boards, design-token catalogs, status reports, before/after writeups, or anything where layout itself is part of the meaning. Markdown flattens that structure into prose; HTML keeps it visible. Use this skill whenever the user asks for "a diagram", "module map", "PR review writeup", "comparison of approaches", "timeline", "flowchart", "dashboard", "explainer", "design exploration", "before/after", or any output where the user would benefit from seeing layout, color, and position carry meaning — even if they don't explicitly say "HTML". Err on the side of triggering when the topic is structural and would be hard to read as a wall of text.
 ---
 

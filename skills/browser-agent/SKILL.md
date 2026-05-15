@@ -1,5 +1,6 @@
 ---
 name: browser-agent
+tags: [browser, testing, automation]
 version: 4.2.0
 description: |
   Clawline Browser Agent — control Chrome tabs via HTTP Hook API.

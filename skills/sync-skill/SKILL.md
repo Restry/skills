@@ -1,5 +1,6 @@
 ---
 name: sync-skill
+tags: [meta, sync, infrastructure]
 description: Use this skill when the user asks to sync, pull, publish, list, or check the status of agent skills shared across machines. Triggers on phrases like "同步技能", "拉一下技能", "把这个技能发布出去", "看看有哪些技能可以装", "sync my skills", "publish this skill". This skill installs/updates SKILL.md trees under ~/.claude/skills/ from a central GitHub repo and reports back to a small server so a Web dashboard can show which machines have which skills.
 ---
 
