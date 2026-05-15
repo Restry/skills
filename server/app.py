@@ -248,12 +248,15 @@ _scheduler = BackgroundScheduler()
 
 @app.on_event("startup")
 def _startup():
+    # Spawn (don't block) the initial refresh so the HTTP port binds even
+    # when the upstream git remote is slow/unreachable. The 60s scheduler
+    # below will keep retrying via the same lock.
     try:
-        _run_refresh()
+        _spawn_refresh()
     except Exception as e:
-        print(f"[startup] initial refresh failed: {e}")
+        print(f"[startup] initial refresh failed to spawn: {e}")
     _scheduler.add_job(
-        _run_refresh,
+        _spawn_refresh,
         "interval", seconds=60, id="reindex", max_instances=1,
     )
     _scheduler.start()
