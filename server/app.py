@@ -76,6 +76,31 @@ def api_refresh():
     return {"ok": True, "skills": n}
 
 
+@app.delete("/api/skills/{name}")
+def api_delete_skill(name: str):
+    root = _skill_root(name)
+    import shutil
+    shutil.rmtree(root)
+    cwd = CLONE_DIR
+    try:
+        subprocess_run(["git", "add", "-A", f"skills/{name}"], cwd)
+        subprocess_run(["git", "-c", "user.name=sync-skill", "-c", "user.email=sync-skill@local",
+                        "commit", "-m", f"delete {name}"], cwd)
+        subprocess_run(["git", "push", "origin", "HEAD"], cwd)
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+    indexer.refresh(db, REPO_URL, CLONE_DIR)
+    return {"ok": True, "deleted": name}
+
+
+def subprocess_run(args, cwd):
+    import subprocess
+    res = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"{' '.join(args)}: {res.stderr.strip() or res.stdout.strip()}")
+    return res.stdout
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True}

@@ -258,6 +258,14 @@
     border: none; cursor: pointer; color: var(--muted); font-size: 18px;
   }
   .modal header .closeBtn:hover { background: var(--surface-2); color: var(--ink); }
+  .modal header .dangerBtn {
+    height: 32px; padding: 0 12px; border-radius: 8px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--bad, #b04025); cursor: pointer; font-size: 12px;
+    font: 500 12px/1 var(--mono); margin-right: 4px;
+  }
+  .modal header .dangerBtn:hover:not(:disabled) { background: rgba(176,64,37,0.08); border-color: rgba(176,64,37,0.4); }
+  .modal header .dangerBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .modal .stripe {
     display: flex; gap: 22px; padding: 12px 26px;
@@ -655,6 +663,11 @@
     skill: (n) => fetch("/api/skills/" + encodeURIComponent(n)).then((r) => r.json()),
     files: (n) => fetch("/api/skills/" + encodeURIComponent(n) + "/files").then((r) => r.json()),
     file: (n, p) => fetch("/api/skills/" + encodeURIComponent(n) + "/file?path=" + encodeURIComponent(p)).then((r) => r.json()),
+    delete: (n) => fetch("/api/skills/" + encodeURIComponent(n), { method: "DELETE" }).then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || ("HTTP " + r.status));
+      return d;
+    }),
     machines: () => fetch("/api/machines").then((r) => r.json()),
     refresh: () => fetch("/api/refresh", { method: "POST" }).then((r) => r.json()),
   };
@@ -794,6 +807,7 @@
             (tags ? '<div style="margin-top:6px;">' + tags + '</div>' : "") +
             (d.description ? '<div class="desc">' + esc(d.description) + '</div>' : "") +
           '</div>' +
+          '<button class="dangerBtn" id="deleteBtn" title="Delete from repo">Delete</button>' +
           '<button class="closeBtn" id="closeBtn" title="Close">✕</button>' +
         '</header>' +
         '<div class="stripe">' +
@@ -844,6 +858,20 @@
         '</div>';
 
       $("closeBtn").onclick = closeModal;
+      $("deleteBtn").onclick = async () => {
+        if (!confirm("Delete skill \"" + d.name + "\" from the repo?\n\nThis removes skills/" + d.name + "/ and pushes the commit. Machines still keep their local copies until they pull again.")) return;
+        const btn = $("deleteBtn");
+        btn.disabled = true; btn.textContent = "Deleting…";
+        try {
+          await api.delete(d.name);
+          toast("Deleted " + d.name);
+          closeModal();
+          await loadAll();
+        } catch (e) {
+          alert("Delete failed: " + e.message);
+          btn.disabled = false; btn.textContent = "Delete";
+        }
+      };
       modal.querySelectorAll(".copy").forEach((b) => {
         b.onclick = () => {
           navigator.clipboard.writeText(b.dataset.copy).then(() => toast("Copied"));
