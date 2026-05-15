@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -44,6 +46,48 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_refresh_lock = threading.Lock()
+_refresh_state = {
+    "running": False,
+    "last_started_at": None,
+    "last_finished_at": None,
+    "last_ok": None,
+    "last_error": None,
+    "last_count": None,
+}
+
+
+def _run_refresh() -> bool:
+    """Run indexer.refresh under the global lock. Returns True if it ran, False if already running."""
+    if not _refresh_lock.acquire(blocking=False):
+        return False
+    try:
+        _refresh_state["running"] = True
+        _refresh_state["last_started_at"] = _now()
+        _refresh_state["last_error"] = None
+        try:
+            n = indexer.refresh(db, REPO_URL, CLONE_DIR)
+            _refresh_state["last_ok"] = True
+            _refresh_state["last_count"] = n
+        except Exception as e:
+            _refresh_state["last_ok"] = False
+            _refresh_state["last_error"] = f"{type(e).__name__}: {e}"
+        _refresh_state["last_finished_at"] = _now()
+        _refresh_state["running"] = False
+        return True
+    finally:
+        _refresh_lock.release()
+
+
+def _spawn_refresh() -> bool:
+    """Try to start a background refresh; returns True if a thread was spawned."""
+    if _refresh_lock.locked():
+        return False
+    t = threading.Thread(target=_run_refresh, daemon=True)
+    t.start()
+    return True
+
+
 @app.get("/api/skills")
 def api_skills(q: str | None = None, tag: str | None = None):
     return {"skills": db.list_skills(q=q, tag=tag)}
@@ -72,8 +116,16 @@ def api_heartbeat(mid: str, hb: Heartbeat):
 
 @app.post("/api/refresh")
 def api_refresh():
-    n = indexer.refresh(db, REPO_URL, CLONE_DIR)
-    return {"ok": True, "skills": n}
+    queued = _spawn_refresh()
+    if not queued:
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "queued": False, "reason": "already running", "state": _refresh_state},
+        )
+    return JSONResponse(
+        status_code=202,
+        content={"ok": True, "queued": True, "state": _refresh_state},
+    )
 
 
 @app.delete("/api/skills/{name}")
@@ -89,7 +141,7 @@ def api_delete_skill(name: str):
         subprocess_run(["git", "push", "origin", "HEAD"], cwd)
     except RuntimeError as e:
         raise HTTPException(500, str(e))
-    indexer.refresh(db, REPO_URL, CLONE_DIR)
+    _spawn_refresh()
     return {"ok": True, "deleted": name}
 
 
@@ -197,11 +249,11 @@ _scheduler = BackgroundScheduler()
 @app.on_event("startup")
 def _startup():
     try:
-        indexer.refresh(db, REPO_URL, CLONE_DIR)
+        _run_refresh()
     except Exception as e:
         print(f"[startup] initial refresh failed: {e}")
     _scheduler.add_job(
-        lambda: indexer.refresh(db, REPO_URL, CLONE_DIR),
+        _run_refresh,
         "interval", seconds=60, id="reindex", max_instances=1,
     )
     _scheduler.start()

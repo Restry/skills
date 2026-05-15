@@ -38,8 +38,8 @@ def main() -> None:
     git(["push"], cwd=cache)
     try:
         http_json("POST", f"{cfg.server_url}/refresh", body={})
-    except SystemExit as e:
-        print(f"warning: refresh failed: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"warning: server refresh failed (server will auto-reindex within 60s): {type(e).__name__}: {e}", file=sys.stderr)
     print(f"Published {name}")
 
 
