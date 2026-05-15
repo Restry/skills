@@ -423,6 +423,49 @@
     opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100;
   }
   .toast.show { opacity: 1; }
+
+  /* custom dialog (replaces confirm/alert) */
+  .dialog-back {
+    position: fixed; inset: 0; background: rgba(27,24,18,0);
+    display: none; align-items: center; justify-content: center;
+    z-index: 200; padding: 20px;
+  }
+  .dialog-back.open { display: flex; background: rgba(27,24,18,0.45); backdrop-filter: blur(2px); }
+  .dialog {
+    width: 100%; max-width: 440px; background: var(--surface);
+    border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+    transform: translateY(8px) scale(0.98); opacity: 0;
+    transition: transform 160ms ease, opacity 160ms ease;
+  }
+  .dialog-back.open .dialog { transform: none; opacity: 1; }
+  .dialog .dh {
+    padding: 18px 22px 6px; font: 500 17px/1.3 var(--serif);
+    color: var(--ink);
+  }
+  .dialog .db {
+    padding: 6px 22px 18px; font-size: 13.5px; line-height: 1.55;
+    color: var(--ink-2); white-space: pre-wrap;
+  }
+  .dialog .df {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 18px; background: var(--paper);
+    border-top: 1px solid var(--line);
+  }
+  .dialog button {
+    height: 32px; padding: 0 14px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--surface);
+    font: 500 12.5px/1 var(--mono); cursor: pointer; color: var(--ink);
+  }
+  .dialog button:hover { background: var(--surface-2); }
+  .dialog button.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .dialog button.primary:hover { filter: brightness(0.93); }
+  .dialog button.danger {
+    background: var(--bad, #b04025); color: white;
+    border-color: var(--bad, #b04025);
+  }
+  .dialog button.danger:hover { filter: brightness(0.93); }
 </style>
 </head>
 <body>
@@ -476,6 +519,10 @@
   <div class="modal" id="modal"></div>
 </div>
 
+<div class="dialog-back" id="dialogBack" role="dialog" aria-modal="true">
+  <div class="dialog" id="dialog"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -515,6 +562,61 @@
     clearTimeout(toast._t);
     toast._t = setTimeout(() => el.classList.remove("show"), 1600);
   }
+
+  // custom modal dialog — promise-based, replaces window.confirm/alert
+  function ui(opts) {
+    const back = $("dialogBack");
+    const box = $("dialog");
+    return new Promise((resolve) => {
+      const buttons = (opts.buttons || [
+        { label: "Cancel", value: false },
+        { label: "OK", value: true, kind: "primary" },
+      ]);
+      box.innerHTML =
+        (opts.title ? '<div class="dh">' + esc(opts.title) + '</div>' : '') +
+        '<div class="db">' + esc(opts.message || "") + '</div>' +
+        '<div class="df">' +
+          buttons.map((b, i) =>
+            '<button data-i="' + i + '" class="' + (b.kind || "") + '">' + esc(b.label) + '</button>'
+          ).join("") +
+        '</div>';
+      function done(val) {
+        back.classList.remove("open");
+        document.removeEventListener("keydown", onKey);
+        back.removeEventListener("click", onBack);
+        setTimeout(() => resolve(val), 160);
+      }
+      function onKey(e) {
+        if (e.key === "Escape") { e.stopPropagation(); done(false); }
+        if (e.key === "Enter") {
+          const primary = buttons.find((b) => b.kind === "primary" || b.kind === "danger");
+          if (primary) { e.preventDefault(); done(primary.value); }
+        }
+      }
+      function onBack(e) { if (e.target === back) done(false); }
+      box.querySelectorAll("button").forEach((btn) => {
+        btn.onclick = () => done(buttons[+btn.dataset.i].value);
+      });
+      document.addEventListener("keydown", onKey);
+      back.addEventListener("click", onBack);
+      back.classList.add("open");
+      const focus = box.querySelector("button.primary, button.danger, button");
+      if (focus) focus.focus();
+    });
+  }
+  const confirmUI = (msg, opts = {}) => ui({
+    title: opts.title || "Confirm",
+    message: msg,
+    buttons: [
+      { label: opts.cancelLabel || "Cancel", value: false },
+      { label: opts.okLabel || "OK", value: true, kind: opts.danger ? "danger" : "primary" },
+    ],
+  });
+  const alertUI = (msg, title) => ui({
+    title: title || "Notice",
+    message: msg,
+    buttons: [{ label: "OK", value: true, kind: "primary" }],
+  });
 
   // ─────────── tiny markdown ───────────
   function renderMd(src) {
@@ -859,7 +961,11 @@
 
       $("closeBtn").onclick = closeModal;
       $("deleteBtn").onclick = async () => {
-        if (!confirm("Delete skill \"" + d.name + "\" from the repo?\n\nThis removes skills/" + d.name + "/ and pushes the commit. Machines still keep their local copies until they pull again.")) return;
+        const ok = await confirmUI(
+          "Delete skills/" + d.name + "/ and push the commit?\nMachines keep their local copies until they pull again.",
+          { title: "Delete \"" + d.name + "\"?", okLabel: "Delete", danger: true }
+        );
+        if (!ok) return;
         const btn = $("deleteBtn");
         btn.disabled = true; btn.textContent = "Deleting…";
         try {
@@ -868,7 +974,7 @@
           closeModal();
           await loadAll();
         } catch (e) {
-          alert("Delete failed: " + e.message);
+          await alertUI(e.message, "Delete failed");
           btn.disabled = false; btn.textContent = "Delete";
         }
       };
