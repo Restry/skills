@@ -22,7 +22,7 @@ metadata:
 | 应用运行时读 vault / 部署含 vault 数据的 UI | [snapshot-deploy.md](references/snapshot-deploy.md) |
 | 健康检查 v3（9 类问题 + 一键脚本） | [health-check.md](references/health-check.md) |
 | 批量改 index.toml.age（避免循环 vault meta） | [bulk-retag.md](references/bulk-retag.md) |
-| 换主解密身份（rotate identity，含 expect 包装） | [identity-rotation.md](references/identity-rotation.md) |
+| 换主解密身份 / 新机器装 vault / 加新机器到 recipients（含跨平台 mac/Linux/Windows） | [identity-rotation.md](references/identity-rotation.md) |
 | 当前状态 / 已巡检项目 / Roadmap | [changelog.md](references/changelog.md) |
 
 ## ⛔ Agent 铁律：永远不读 secret 真值
