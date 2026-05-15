@@ -66,6 +66,48 @@
   }
   header.top .meta button:hover { border-color: var(--accent); color: var(--accent); }
 
+  /* ─────────── install card ─────────── */
+  .install {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 18px 16px; margin-bottom: 22px;
+    box-shadow: 0 1px 2px rgba(27,24,18,0.04);
+  }
+  .install-h {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .install-title {
+    font: 500 15px/1.2 var(--serif); color: var(--ink);
+  }
+  .install-sub {
+    font-size: 12px; color: var(--muted); margin-top: 2px;
+  }
+  .install-tabs { display: flex; gap: 4px; }
+  .install-tabs .tab {
+    font: 500 11px/1 var(--mono); padding: 5px 10px; border-radius: 6px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--muted); cursor: pointer; letter-spacing: 0.04em;
+  }
+  .install-tabs .tab:hover { color: var(--ink); }
+  .install-tabs .tab.active {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .install-body { position: relative; }
+  .install-snippet {
+    margin: 0; padding: 14px 56px 14px 16px; background: var(--paper);
+    border: 1px solid var(--line); border-radius: 8px;
+    font: 12.5px/1.6 var(--mono); color: var(--ink);
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 240px; overflow: auto;
+  }
+  .install-copy {
+    position: absolute; top: 8px; right: 8px;
+    font: 500 11px/1 var(--mono); padding: 5px 9px; border-radius: 6px;
+    background: var(--surface); border: 1px solid var(--line);
+    color: var(--muted); cursor: pointer;
+  }
+  .install-copy:hover { background: var(--surface-2); color: var(--ink); }
+
   /* ─────────── KPIs ─────────── */
   .kpis {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px;
@@ -484,6 +526,23 @@
       <button id="refreshBtn">Refresh ↻</button>
     </div>
   </header>
+
+  <section class="install" id="installCard">
+    <div class="install-h">
+      <div>
+        <div class="install-title">在新机器上装 sync-skill</div>
+        <div class="install-sub">把这段话整段发给 Claude / OpenClaw / Hermes，它会自己执行</div>
+      </div>
+      <div class="install-tabs">
+        <button class="tab active" data-tab="agent">Agent 提示</button>
+        <button class="tab" data-tab="shell">Shell 命令</button>
+      </div>
+    </div>
+    <div class="install-body">
+      <pre class="install-snippet" id="installSnippet">Loading…</pre>
+      <button class="install-copy" id="installCopy">copy</button>
+    </div>
+  </section>
 
   <section class="kpis">
     <div class="kpi"><div class="label">Skills</div><div class="value" id="kSkills">—</div><div class="hint">published in registry</div></div>
@@ -1092,6 +1151,61 @@
   fetch("/api/skills").then((r) => r.json()).then(() => {
     $("hdrRepo").textContent = "Restry/skills";
   });
+
+  // ─────────── install snippet ───────────
+  (async () => {
+    let cfg = { server_url: location.origin + "/api", repo_url: "" };
+    try {
+      const d = await fetch("/api/install").then((r) => r.json());
+      cfg.server_url = d.server_url || cfg.server_url;
+      cfg.repo_url = d.repo_url || cfg.repo_url;
+    } catch (_) {}
+    const repo = cfg.repo_url || "https://github.com/Restry/skills.git";
+
+    const agentText =
+      "请帮我在这台机器上安装 sync-skill 这个 agent skill：\n" +
+      "\n" +
+      "1. 用 git 把 " + repo + " 克隆到一个临时目录\n" +
+      "2. 把里面的 skills/sync-skill 目录拷贝到 ~/.claude/skills/sync-skill\n" +
+      "3. 删除临时目录\n" +
+      "4. 运行下面这条命令来初始化（machine_id 会自动生成、向服务器注册）：\n" +
+      "\n" +
+      "   python3 ~/.claude/skills/sync-skill/scripts/init.py \\\n" +
+      "     --server " + cfg.server_url + " \\\n" +
+      "     --repo " + repo + " \\\n" +
+      "     --runtime claude\n" +
+      "\n" +
+      "完成后告诉我服务器上目前有哪些技能（运行 list.py）。如果克隆需要凭据请告诉我。";
+
+    const shellText =
+      "set -e\n" +
+      "TMP=$(mktemp -d)\n" +
+      "git clone --depth 1 " + repo + " \"$TMP\"\n" +
+      "mkdir -p ~/.claude/skills\n" +
+      "rm -rf ~/.claude/skills/sync-skill\n" +
+      "cp -r \"$TMP/skills/sync-skill\" ~/.claude/skills/sync-skill\n" +
+      "rm -rf \"$TMP\"\n" +
+      "python3 ~/.claude/skills/sync-skill/scripts/init.py \\\n" +
+      "  --server " + cfg.server_url + " \\\n" +
+      "  --repo " + repo + " \\\n" +
+      "  --runtime claude";
+
+    const snippets = { agent: agentText, shell: shellText };
+    let current = "agent";
+    function render() {
+      $("installSnippet").textContent = snippets[current];
+      document.querySelectorAll(".install-tabs .tab").forEach((b) => {
+        b.classList.toggle("active", b.dataset.tab === current);
+      });
+    }
+    render();
+    document.querySelectorAll(".install-tabs .tab").forEach((b) => {
+      b.onclick = () => { current = b.dataset.tab; render(); };
+    });
+    $("installCopy").onclick = () => {
+      navigator.clipboard.writeText(snippets[current]).then(() => toast("Copied"));
+    };
+  })();
 
   loadAll();
   setInterval(loadAll, 30000); // gentle refresh

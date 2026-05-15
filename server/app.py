@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -104,6 +104,25 @@ def subprocess_run(args, cwd):
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+def _https_repo(url: str) -> str:
+    """Convert git@github.com:user/repo.git → https://github.com/user/repo.git for anonymous clone."""
+    if url.startswith("git@"):
+        host, path = url[4:].split(":", 1)
+        return f"https://{host}/{path}"
+    return url
+
+
+@app.get("/api/install")
+def api_install(request: Request):
+    server_url = str(request.base_url).rstrip("/") + "/api"
+    repo_https = _https_repo(REPO_URL) if REPO_URL else ""
+    return {
+        "server_url": server_url,
+        "repo_url": repo_https,
+        "repo_url_raw": REPO_URL,
+    }
 
 
 def _skill_root(name: str) -> Path:
