@@ -106,7 +106,10 @@ def api_skill_files(name: str):
     root = _skill_root(name)
     out = []
     for p in sorted(root.rglob("*")):
-        if any(part == ".git" or part.startswith(".") and part not in (".gitignore", ".gitattributes", ".env.example") for part in p.relative_to(root).parts):
+        rel_parts = p.relative_to(root).parts
+        if any(part == ".git" or (part.startswith(".") and part not in (".gitignore", ".gitattributes", ".env.example")) for part in rel_parts):
+            continue
+        if any("Zone.Identifier" in part for part in rel_parts):
             continue
         if p.is_dir():
             continue
