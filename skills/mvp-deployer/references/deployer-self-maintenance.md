@@ -39,12 +39,13 @@ Do not trust a coding agent's success report. Hermes should verify:
 
 ```bash
 cd ~/projects/mvp-deployer
-python3 -m py_compile skill/scripts/deploy.py
 node --check server.js deploy.config.js ecosystem.config.js
 for f in lib/*.js; do node --check "$f" || exit 1; done
 npm test
 git diff --stat
 git status --short
+# Skill script lives only in sync-skill/Hermes skill source now:
+python3 -m py_compile ~/.hermes/skills/devops/mvp-deployer/scripts/deploy.py
 ```
 
 Also run a secret grep for any sensitive value handled in the session. Keep values out of summaries and commits.

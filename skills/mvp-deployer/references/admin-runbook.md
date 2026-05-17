@@ -39,15 +39,19 @@ ssh claw@163.228.243.161 'rm -rf /opt/mvp-apps/mvp-deployer && pm2 restart mvp-d
 # 然后手动从 /opt/mvp-deployer/data/tasks.json 里删 project=="mvp-deployer" 的记录
 ```
 
-## 2. SKILL.md 三份同步
+## 2. Skill 分发唯一来源：sync-skill
 
-主 skill 改完必须三处一起更新：
+mvp-deployer 项目仓库不再内置 `skill/` 目录或根 `SKILL.md`，运行时也不再提供 `/skill.zip` / `/install-instruction`。
+
+主 skill 改完只更新 Hermes 本地这一份，然后发布到 sync-skill 仓库：
 
 ```bash
-cp ~/projects/mvp-deployer/skill/SKILL.md ~/projects/mvp-deployer/SKILL.md
-cp ~/projects/mvp-deployer/skill/SKILL.md ~/.hermes/skills/devops/mvp-deployer/SKILL.md
-# 然后 rsync 上服务器（包含 skill/ 目录，被 /skill.zip 端点打包给客户端 agent 下载）
+python3 ~/.hermes/skills/sync-skill/scripts/publish.py \
+  ~/.hermes/skills/devops/mvp-deployer \
+  -m "publish mvp-deployer"
 ```
+
+不要恢复“三份 SKILL.md 同步”的旧模式。
 
 ## 3. 平台层故障（API 解决不了的）
 
@@ -67,18 +71,15 @@ cp ~/projects/mvp-deployer/skill/SKILL.md ~/.hermes/skills/devops/mvp-deployer/S
 ## 4. 安全 Checklist（每次改主 SKILL.md 必跑）
 
 - [ ] 文档里没有任何 token / API key / 密码（包括示例代码里的占位）
-- [ ] 凭据只走 `~/.credentials/.env` 的 `MVP_DEPLOYER__TOKEN`
-- [ ] 三份 SKILL.md 同步一致：
+- [ ] 凭据只走 `~/.credentials/.env` 的 `MVP_DEPLOYER__TOKEN` 或 legacy `~/.credentials/mvp-deployer.env` 的 `DEPLOYER_TOKEN`
+- [ ] 项目仓库没有重新引入 `skill/`、根 `SKILL.md`、`/skill.zip` 或 `/install-instruction`
+- [ ] skill 更新后已通过 `sync-skill` 发布：
   ```bash
-  md5sum ~/projects/mvp-deployer/skill/SKILL.md \
-         ~/projects/mvp-deployer/SKILL.md \
-         ~/.hermes/skills/devops/mvp-deployer/SKILL.md
+  python3 ~/.hermes/skills/sync-skill/scripts/publish.py ~/.hermes/skills/devops/mvp-deployer -m "publish mvp-deployer"
   ```
 - [ ] 指纹扫描无泄漏：
   ```bash
-  grep -Ef ~/.credentials/secret-fingerprints.txt \
-    ~/projects/mvp-deployer/skill/SKILL.md \
-    ~/projects/mvp-deployer/skill/references/admin-runbook.md \
+  grep -RIf ~/.credentials/secret-fingerprints.txt ~/.hermes/skills/devops/mvp-deployer \
     && echo "❌ LEAK" || echo "✅ clean"
   ```
 - [ ] `~/projects/mvp-deployer/.credentials` 已在 `.gitignore`
