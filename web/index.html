@@ -39,7 +39,10 @@
   }
 
   /* ─────────── shell ─────────── */
-  .shell { max-width: 1180px; margin: 0 auto; padding: 28px 28px 80px; }
+  .shell {
+    width: 100%; max-width: none;
+    margin: 0; padding: 22px clamp(16px, 3vw, 40px) 80px;
+  }
 
   header.top {
     display: flex; align-items: flex-end; justify-content: space-between;
@@ -139,8 +142,22 @@
   }
 
   /* ─────────── grid ─────────── */
-  .grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 22px; }
-  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .grid {
+    display: grid; gap: 22px;
+    grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  }
+  @media (max-width: 980px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  @media (min-width: 1600px) {
+    .grid { grid-template-columns: minmax(0, 2fr) minmax(360px, 480px); }
+  }
+  @media (max-width: 720px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .kpis { grid-template-columns: 1fr; }
+  }
 
   section.panel {
     background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
@@ -530,8 +547,8 @@
   <section class="install" id="installCard">
     <div class="install-h">
       <div>
-        <div class="install-title">在新机器上装 sync-skill</div>
-        <div class="install-sub">把这段话整段发给 Claude / OpenClaw / Hermes，它会自己执行</div>
+        <div class="install-title">在新机器上装 sync-skill（共享 + 软链接）</div>
+        <div class="install-sub">所有 agent runtime 共用 ~/.local/share/agent-skills/sync-skill，各家 skills 目录通过 symlink 指过去</div>
       </div>
       <div class="install-tabs">
         <button class="tab active" data-tab="agent">Agent 提示</button>
@@ -1163,29 +1180,44 @@
     const repo = cfg.repo_url || "https://github.com/Restry/skills.git";
 
     const agentText =
-      "请帮我在这台机器上安装 sync-skill 这个 agent skill：\n" +
+      "请在这台机器上安装 sync-skill 这个共享 skill。规则：所有 agent runtime 共用同一份源码，各 runtime 的 skills 目录通过软链接指过去，避免各自为战。\n" +
       "\n" +
-      "1. 用 git 把 " + repo + " 克隆到一个临时目录\n" +
-      "2. 把里面的 skills/sync-skill 目录拷贝到 ~/.claude/skills/sync-skill\n" +
-      "3. 删除临时目录\n" +
-      "4. 运行下面这条命令来初始化（machine_id 会自动生成、向服务器注册）：\n" +
+      "步骤：\n" +
+      "1. 把 " + repo + " 浅克隆到一个临时目录。\n" +
+      "2. 在 ~/.local/share/agent-skills/ 下放共享目录。把 skills/sync-skill 移到 ~/.local/share/agent-skills/sync-skill（若已存在先删旧的）。删临时目录。\n" +
+      "3. 检测本机已存在的 runtime skills 目录，给每个都建一个软链接（如已存在同名链接或目录就先删掉再 link）：\n" +
+      "     ln -sfn ~/.local/share/agent-skills/sync-skill ~/.claude/skills/sync-skill        # 如果有 ~/.claude/\n" +
+      "     ln -sfn ~/.local/share/agent-skills/sync-skill ~/.openclaw/skills/sync-skill      # 如果有 ~/.openclaw/\n" +
+      "     ln -sfn ~/.local/share/agent-skills/sync-skill ~/.hermes/skills/sync-skill        # 如果有 ~/.hermes/\n" +
+      "   不存在的 runtime 目录就跳过，不要新建。\n" +
+      "4. 运行 init 注册到服务器：\n" +
       "\n" +
-      "   python3 ~/.claude/skills/sync-skill/scripts/init.py \\\n" +
+      "   python3 ~/.local/share/agent-skills/sync-skill/scripts/init.py \\\n" +
       "     --server " + cfg.server_url + " \\\n" +
       "     --repo " + repo + " \\\n" +
       "     --runtime claude\n" +
       "\n" +
-      "完成后告诉我服务器上目前有哪些技能（运行 list.py）。如果克隆需要凭据请告诉我。";
+      "完成后告诉我装好了哪些软链接，以及服务器上目前有哪些技能（list.py）。需要凭据请告诉我。";
 
     const shellText =
-      "set -e\n" +
+      "set -euo pipefail\n" +
+      "SHARED=\"$HOME/.local/share/agent-skills\"\n" +
       "TMP=$(mktemp -d)\n" +
       "git clone --depth 1 " + repo + " \"$TMP\"\n" +
-      "mkdir -p ~/.claude/skills\n" +
-      "rm -rf ~/.claude/skills/sync-skill\n" +
-      "cp -r \"$TMP/skills/sync-skill\" ~/.claude/skills/sync-skill\n" +
+      "mkdir -p \"$SHARED\"\n" +
+      "rm -rf \"$SHARED/sync-skill\"\n" +
+      "mv \"$TMP/skills/sync-skill\" \"$SHARED/sync-skill\"\n" +
       "rm -rf \"$TMP\"\n" +
-      "python3 ~/.claude/skills/sync-skill/scripts/init.py \\\n" +
+      "\n" +
+      "# Symlink into each runtime that exists locally; skip the rest.\n" +
+      "for base in \"$HOME/.claude\" \"$HOME/.openclaw\" \"$HOME/.hermes\"; do\n" +
+      "  [ -d \"$base\" ] || continue\n" +
+      "  mkdir -p \"$base/skills\"\n" +
+      "  ln -sfn \"$SHARED/sync-skill\" \"$base/skills/sync-skill\"\n" +
+      "  echo \"linked $base/skills/sync-skill -> $SHARED/sync-skill\"\n" +
+      "done\n" +
+      "\n" +
+      "python3 \"$SHARED/sync-skill/scripts/init.py\" \\\n" +
       "  --server " + cfg.server_url + " \\\n" +
       "  --repo " + repo + " \\\n" +
       "  --runtime claude";
