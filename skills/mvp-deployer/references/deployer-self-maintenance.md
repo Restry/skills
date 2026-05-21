@@ -48,6 +48,10 @@ git status --short
 python3 -m py_compile ~/.hermes/skills/devops/mvp-deployer/scripts/deploy.py
 ```
 
+For Dashboard UI / WeChat-login / install-instruction changes, also load `references/dashboard-local-qa.md` and run the local logged-in visual QA flow before committing/deploying.
+
+Dashboard WeChat-login pitfall: wx-gateway finalize redirects may send `ts=Date.now()` as a millisecond epoch, while older deployer code/tests used second epochs. `verifyWxFinalize` must accept both ms and sec timestamps, keep the ±5 minute skew limit, and compute the HMAC over the original raw `ts` string.
+
 Also run a secret grep for any sensitive value handled in the session. Keep values out of summaries and commits.
 
 For pipeline changes, run at least one local API smoke where possible:

@@ -471,6 +471,7 @@ DB_URL=$(echo "$RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["
 | `references/caddy-recovery.md` | Caddy 重复 @id 路由清理流程 |
 | `references/manifest-schema.md` | manifest 完整字段定义 |
 | `references/deployer-self-maintenance.md` | 修改 mvp-deployer 自身时的 one-path deploy/env/preserveData/验证清单 |
+| `references/dashboard-local-qa.md` | Dashboard UI / 微信登录 / sync-skill 安装指引的本地登录与视觉验收清单 |
 
 加载方式：`skill_view(name="mvp-deployer", file_path="scripts/deploy.py")`
 
