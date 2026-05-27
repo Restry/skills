@@ -1,0 +1,590 @@
+diff --git a/gateway/platforms/feishu.py b/gateway/platforms/feishu.py
+index a9b044708..334362375 100644
+--- a/gateway/platforms/feishu.py
++++ b/gateway/platforms/feishu.py
+@@ -156,6 +156,118 @@ _MARKDOWN_HINT_RE = re.compile(
+ # Detect markdown tables: a line starting with | followed by a separator line.
+ # Feishu post-type 'md' elements do not render tables, so we force text mode.
+ _MARKDOWN_TABLE_RE = re.compile(r"^\|.*\|\n\|[-|: ]+\|", re.MULTILINE)
++_QUESTION_TAIL_RE = re.compile(r"[?？][\s)\]」』）】\"'`*_~。.！!]*$")
++# Negation tokens: a multi_choice "还是" option containing any of these
++# is treated as the "no" / negative branch (forces yes_no card).
++_NEGATION_RE = re.compile(r"^(不|别|否|取消|算了|拒绝|放弃|不要|不用|不行)")
++# Markdown noise to strip before parsing actionable cards.
++_MD_NOISE_RE = re.compile(r"[*_`~]+")
++
++
++def _strip_md_noise(text: str) -> str:
++    """Strip markdown emphasis/code markers so option detection isn't fooled
++    by `**A**` or backticks."""
++    return _MD_NOISE_RE.sub("", text or "")
++
++
++def _parse_actionable_card(content: str) -> Optional[Dict[str, Any]]:
++    """Detect whether content should render as an interactive card.
++
++    Returns a dict with type ('multi_choice'), question_text, and options when
++    applicable; None when content is plain text. Strategy:
++
++    1. Strip markdown emphasis noise.
++    2. Try **multi_choice**: lines starting with A/B/C/D/E or 1-5 followed by
++       a punctuator (.:、)）. Need >=2 distinct labels.
++
++    Yes/No auto-cards have been intentionally removed — they fire too often on
++    rhetorical or informational trailing questions. Use the `clarify` tool when
++    you really need a 2-button binary confirmation.
++    """
++    if not content:
++        return None
++    text = content.rstrip()
++    # Drop trailing fenced code blocks so question detection looks at
++    # conversational tail, not example code.
++    text = re.sub(r"\n```[\s\S]*?```\s*$", "", text).rstrip()
++    if not text:
++        return None
++    clean = _strip_md_noise(text)
++
++    # ---- Rule 1: explicit A/B/C or 1/2/3 list ----
++    option_re = re.compile(
++        r"(?:^|\n)\s*(?:[-+*]\s*)?([A-Ea-e1-5])\s*[.:：、)）]\s*([^\n]+)"
++    )
++    options_map: Dict[str, str] = {}
++    options_order: List[str] = []
++    for m in option_re.finditer(clean):
++        label = m.group(1).upper()
++        if label not in options_map:
++            options_map[label] = m.group(2).strip()
++            options_order.append(label)
++    if len(options_map) >= 2:
++        first_text = options_map[options_order[0]]
++        before = clean.split(first_text, 1)[0]
++        q_match = re.search(r"([^。！？\n]*?[：:？?])(?:\s*\n)?\s*$", before)
++        q_text = q_match.group(1).strip() if q_match else "请选择："
++        return {
++            "type": "multi_choice",
++            "question_text": q_text,
++            "options": [
++                {"label": lbl, "text": options_map[lbl], "value": lbl}
++                for lbl in options_order
++            ],
++        }
++
++    return None
++
++
++def _ends_with_question(content: str) -> bool:
++    """Legacy wrapper kept for callers that only need a boolean signal.
++
++    Returns True iff `_parse_actionable_card` would emit any card type.
++    """
++    return _parse_actionable_card(content) is not None
++
++
++def _derive_card_title(content: str, max_chars: int = 28) -> str:
++    """Pick the first non-empty content line and clean it for use as a card header.
++
++    Strategy: skip blank lines / fence lines / table delimiter lines, then strip
++    common markdown noise (`#` headers, list bullets, bold/italic/code marks,
++    inline links). Falls back to empty string when nothing usable is found.
++    """
++    if not content:
++        return ""
++    for raw_line in content.splitlines():
++        line = raw_line.strip()
++        if not line:
++            continue
++        if line.startswith("```") or line.startswith("---") or line.startswith("==="):
++            continue
++        # Skip table separator lines like "| --- | --- |"
++        if re.match(r"^\|?\s*:?-{2,}", line):
++            continue
++        # Strip leading markdown markers
++        line = re.sub(r"^#{1,6}\s+", "", line)
++        line = re.sub(r"^[-*+]\s+", "", line)
++        line = re.sub(r"^\d+\.\s+", "", line)
++        line = re.sub(r"^>\s+", "", line)
++        # Strip inline markdown
++        line = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", line)  # links → text
++        line = re.sub(r"`([^`]+)`", r"\1", line)               # code spans
++        line = re.sub(r"\*\*([^*]+)\*\*", r"\1", line)         # bold
++        line = re.sub(r"\*([^*]+)\*", r"\1", line)             # italic
++        line = re.sub(r"~~([^~]+)~~", r"\1", line)             # strike
++        line = re.sub(r"<font[^>]*>", "", line)                 # html font open
++        line = line.replace("</font>", "")
++        line = line.strip()
++        if not line:
++            continue
++        if len(line) > max_chars:
++            line = line[: max_chars - 1].rstrip() + "…"
++        return line
++    return ""
+ _MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+ _MARKDOWN_FENCE_OPEN_RE = re.compile(r"^```([^\n`]*)\s*$")
+ _MARKDOWN_FENCE_CLOSE_RE = re.compile(r"^```\s*$")
+@@ -1461,6 +1573,9 @@ class FeishuAdapter(BasePlatformAdapter):
+         # Exec approval button state (approval_id → {session_key, message_id, chat_id})
+         self._approval_state: Dict[int, Dict[str, str]] = {}
+         self._approval_counter = itertools.count(1)
++        # Clarify button state (clarify_id → session_key). The clarify_id
++        # itself is minted upstream by tools.clarify_gateway.
++        self._clarify_state: Dict[str, str] = {}
+         # Update prompt button state (prompt_id → {session_key, message_id, chat_id})
+         self._update_prompt_state: Dict[int, Dict[str, str]] = {}
+         self._update_prompt_counter = itertools.count(1)
+@@ -1984,6 +2099,130 @@ class FeishuAdapter(BasePlatformAdapter):
+             logger.warning("[Feishu] send_update_prompt failed: %s", exc)
+             return SendResult(success=False, error=str(exc))
+ 
++    async def send_clarify(
++        self,
++        chat_id: str,
++        question: str,
++        choices: Optional[List[str]],
++        clarify_id: str,
++        session_key: str,
++        metadata: Optional[Dict[str, Any]] = None,
++    ) -> SendResult:
++        """Send an interactive clarify card with one button per choice.
++
++        Multi-choice: renders one button per option plus a final "✏️ Other
++        (type answer)" button. Picking "Other" flips the entry into
++        text-capture mode so the next message becomes the response.
++
++        Open-ended (no choices): renders the question as plain markdown —
++        no buttons. The gateway's text-intercept captures the next message.
++        """
++        if not self._client:
++            return SendResult(success=False, error="Not connected")
++
++        try:
++            elements: List[Dict[str, Any]] = [
++                {"tag": "markdown", "content": f"**❓ {self._escape_lark_markdown(question)}**"},
++            ]
++
++            if choices:
++                action_buttons: List[Dict[str, Any]] = []
++                for idx, choice in enumerate(choices):
++                    label = str(choice)
++                    if len(label) > 60:
++                        label = label[:57] + "..."
++                    action_buttons.append({
++                        "tag": "button",
++                        "text": {"tag": "plain_text", "content": f"{idx + 1}. {label}"},
++                        "type": "default",
++                        "value": {
++                            "hermes_clarify_action": "choose",
++                            "clarify_id": clarify_id,
++                            "choice_idx": idx,
++                        },
++                    })
++                action_buttons.append({
++                    "tag": "button",
++                    "text": {"tag": "plain_text", "content": "✏️ Other (type answer)"},
++                    "type": "default",
++                    "value": {
++                        "hermes_clarify_action": "other",
++                        "clarify_id": clarify_id,
++                    },
++                })
++                elements.append({"tag": "action", "actions": action_buttons})
++
++            card = {
++                "config": {"wide_screen_mode": True},
++                "header": {
++                    "title": {"content": "❓ Clarify", "tag": "plain_text"},
++                    "template": "blue",
++                },
++                "elements": elements,
++            }
++
++            payload = json.dumps(card, ensure_ascii=False)
++            response = await self._feishu_send_with_retry(
++                chat_id=chat_id,
++                msg_type="interactive",
++                payload=payload,
++                reply_to=None,
++                metadata=metadata,
++            )
++
++            result = self._finalize_send_result(response, "send_clarify failed")
++            if result.success:
++                self._clarify_state[clarify_id] = session_key
++            return result
++        except Exception as exc:
++            logger.warning("[Feishu] send_clarify failed: %s", exc)
++            return SendResult(success=False, error=str(exc))
++
++    @staticmethod
++    def _escape_lark_markdown(text: str) -> str:
++        """Escape Lark-markdown control chars so user-supplied question text
++        cannot inject formatting (or break out of the surrounding **…**)."""
++        if not text:
++            return ""
++        out = []
++        for ch in text:
++            if ch in ("*", "_", "[", "]", "`"):
++                out.append("\\" + ch)
++            else:
++                out.append(ch)
++        return "".join(out)
++
++    @staticmethod
++    def _build_resolved_clarify_card(*, question: str, choice_text: str, user_name: str) -> Dict[str, Any]:
++        q = FeishuAdapter._escape_lark_markdown(question)
++        c = FeishuAdapter._escape_lark_markdown(choice_text)
++        u = FeishuAdapter._escape_lark_markdown(user_name)
++        return {
++            "config": {"wide_screen_mode": True},
++            "header": {
++                "title": {"content": "✅ Clarify answered", "tag": "plain_text"},
++                "template": "green",
++            },
++            "elements": [
++                {"tag": "markdown", "content": f"**❓ {q}**\n\n**{u}:** {c}"},
++            ],
++        }
++
++    @staticmethod
++    def _build_awaiting_text_clarify_card(*, question: str, user_name: str) -> Dict[str, Any]:
++        q = FeishuAdapter._escape_lark_markdown(question) if question else "Awaiting your response"
++        u = FeishuAdapter._escape_lark_markdown(user_name)
++        return {
++            "config": {"wide_screen_mode": True},
++            "header": {
++                "title": {"content": "✏️ Awaiting typed answer", "tag": "plain_text"},
++                "template": "blue",
++            },
++            "elements": [
++                {"tag": "markdown", "content": f"**❓ {q}**\n\n_Awaiting typed response from {u}…_"},
++            ],
++        }
++
+     @staticmethod
+     def _build_resolved_approval_card(*, choice: str, user_name: str) -> Dict[str, Any]:
+         """Build raw card JSON for a resolved approval action."""
+@@ -2513,6 +2752,14 @@ class FeishuAdapter(BasePlatformAdapter):
+             action_value.get("hermes_update_prompt_action")
+             if isinstance(action_value, dict) else None
+         )
++        clarify_action = (
++            action_value.get("hermes_clarify_action")
++            if isinstance(action_value, dict) else None
++        )
++        quickreply_action = (
++            action_value.get("hermes_quickreply")
++            if isinstance(action_value, dict) else None
++        )
+ 
+         if hermes_action:
+             return self._handle_approval_card_action(event=event, action_value=action_value, loop=loop)
+@@ -2522,6 +2769,10 @@ class FeishuAdapter(BasePlatformAdapter):
+                 action_value=action_value,
+                 loop=loop,
+             )
++        if clarify_action:
++            return self._handle_clarify_card_action(event=event, action_value=action_value, loop=loop)
++        if quickreply_action:
++            return self._handle_quickreply_card_action(event=event, data=data, action_value=action_value, loop=loop)
+ 
+         self._submit_on_loop(loop, self._handle_card_action_event(data))
+         if P2CardActionTriggerResponse is None:
+@@ -2648,6 +2899,197 @@ class FeishuAdapter(BasePlatformAdapter):
+         except Exception as exc:
+             logger.error("Failed to resolve Feishu update prompt: %s", exc)
+ 
++    def _handle_quickreply_card_action(self, *, event: Any, data: Any, action_value: Dict[str, Any], loop: Any) -> Any:
++        """Handle a quick-reply button click (auto-injected for messages ending with ?).
++
++        Returns a replacement card so the buttons disappear and a ✓ label
++        confirms the choice, while async-scheduling a synthetic TEXT event
++        with the chosen reply.
++        """
++        reply_text = str(action_value.get("text") or "").strip()
++        if not reply_text:
++            return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
++
++        # Dedup: Feishu may re-deliver the same card-action token on network
++        # retries; without this guard a single click could inject N synthetic
++        # user messages into the agent. Mirror the pattern used by the legacy
++        # `_handle_card_action_event` path (which has its own dedup at the
++        # entry of that method). Approval/clarify/update_prompt rely on their
++        # own state dicts to be idempotent; quickreply has no such state, so
++        # token dedup is the only line of defense.
++        token = str(getattr(event, "token", "") or "")
++        if token and self._is_card_action_duplicate(token):
++            logger.debug("[Feishu] Dropping duplicate quick-reply token: %s", token)
++            return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
++
++        operator = getattr(event, "operator", None)
++        open_id = str(getattr(operator, "open_id", "") or "")
++        if not self._is_interactive_operator_authorized(open_id):
++            logger.warning("[Feishu] Unauthorized quick-reply click by %s", open_id or "<unknown>")
++            return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
++
++        context = getattr(event, "context", None)
++        chat_id = str(getattr(context, "open_chat_id", "") or "")
++        card_msg_id = str(getattr(context, "open_message_id", "") or "")
++        token = str(getattr(event, "token", "") or "")
++
++        # Async: synthesize the user message so the agent processes it.
++        async def _inject() -> None:
++            try:
++                sender_id_qr = SimpleNamespace(open_id=open_id, user_id=None, union_id=None)
++                sender_profile_qr = await self._resolve_sender_profile(sender_id_qr)
++                chat_info_qr = await self.get_chat_info(chat_id)
++                source_qr = self.build_source(
++                    chat_id=chat_id,
++                    chat_name=chat_info_qr.get("name") or chat_id or "Feishu Chat",
++                    chat_type=self._resolve_source_chat_type(chat_info=chat_info_qr, event_chat_type="p2p"),
++                    user_id=sender_profile_qr["user_id"],
++                    user_name=sender_profile_qr["user_name"],
++                    thread_id=None,
++                    user_id_alt=sender_profile_qr["user_id_alt"],
++                )
++                synthetic_qr = MessageEvent(
++                    text=reply_text,
++                    message_type=MessageType.TEXT,
++                    source=source_qr,
++                    raw_message=data,
++                    message_id=card_msg_id or str(uuid.uuid4()),
++                    timestamp=datetime.now(),
++                )
++                logger.info("[Feishu] Quick-reply %r from %s as synthetic text", action_value.get("hermes_quickreply"), open_id)
++                await self._handle_message_with_guards(synthetic_qr)
++            except Exception as exc:
++                logger.warning("[Feishu] quick-reply async injection failed: %s", exc)
++
++        self._submit_on_loop(loop, _inject())
++
++        # Sync: return resolved card (buttons removed, ✓ confirmation shown).
++        if P2CardActionTriggerResponse is None:
++            return None
++        response = P2CardActionTriggerResponse()
++        if CallBackCard is not None:
++            card = CallBackCard()
++            card.type = "raw"
++            kept_title = str(action_value.get("card_title") or "").strip()
++            resolved_title = "✓ " + (kept_title or "Quick reply")
++            card.data = {
++                "schema": "2.0",
++                "header": {
++                    "title": {"tag": "plain_text", "content": resolved_title},
++                    "template": "green",
++                },
++                "body": {
++                    "elements": [
++                        {"tag": "markdown", "content": f"<font color='grey'>已回复：</font>**{reply_text}**"},
++                    ],
++                },
++            }
++            response.card = card
++        return response
++
++    def _handle_clarify_card_action(self, *, event: Any, action_value: Dict[str, Any], loop: Any) -> Any:
++        """Resolve a clarify button click; return a replacement card."""
++        clarify_id = str(action_value.get("clarify_id") or "")
++        sub_action = str(action_value.get("hermes_clarify_action") or "")
++        if not clarify_id or clarify_id not in self._clarify_state:
++            logger.debug("[Feishu] Clarify %s already resolved or unknown", clarify_id)
++            return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
++
++        operator = getattr(event, "operator", None)
++        open_id = str(getattr(operator, "open_id", "") or "")
++        if not self._is_interactive_operator_authorized(open_id):
++            logger.warning("[Feishu] Unauthorized clarify click by %s", open_id or "<unknown>")
++            return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
++        user_name = self._get_cached_sender_name(open_id) or open_id or "User"
++
++        # Look up the question and choice text from the clarify primitive.
++        question = ""
++        resolved_text: Optional[str] = None
++        try:
++            from tools.clarify_gateway import _entries as _clarify_entries  # type: ignore
++            entry = _clarify_entries.get(clarify_id)
++            if entry is not None:
++                question = entry.question or ""
++                if sub_action == "choose":
++                    idx = action_value.get("choice_idx")
++                    try:
++                        idx_int = int(idx)
++                    except (TypeError, ValueError):
++                        idx_int = -1
++                    if entry.choices and 0 <= idx_int < len(entry.choices):
++                        resolved_text = entry.choices[idx_int]
++        except Exception as exc:
++            logger.debug("[Feishu] Failed to read clarify entry %s: %s", clarify_id, exc)
++
++        if sub_action == "other":
++            # Flip to text-capture mode; keep _clarify_state alive so a
++            # late session-cleanup can still find the key.
++            try:
++                from tools.clarify_gateway import mark_awaiting_text
++                mark_awaiting_text(clarify_id)
++            except Exception as exc:
++                logger.warning("[Feishu] mark_awaiting_text failed: %s", exc)
++
++            if P2CardActionTriggerResponse is None:
++                return None
++            response = P2CardActionTriggerResponse()
++            if CallBackCard is not None:
++                card = CallBackCard()
++                card.type = "raw"
++                card.data = self._build_awaiting_text_clarify_card(question=question, user_name=user_name)
++                response.card = card
++            return response
++
++        if sub_action != "choose":
++            return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
++
++        if resolved_text is None:
++            # Race with cleanup — fall back to index label so the agent
++            # sees an intentional response rather than nothing.
++            try:
++                idx_int = int(action_value.get("choice_idx"))
++                resolved_text = f"choice {idx_int + 1}"
++            except (TypeError, ValueError):
++                resolved_text = "choice"
++
++        # Schedule the unblock first; only drop state if the loop accepted
++        # the coroutine. Otherwise the agent would stay blocked with no
++        # state left to retry against.
++        if not self._submit_on_loop(loop, self._resolve_clarify(clarify_id, resolved_text, user_name)):
++            logger.warning("[Feishu] clarify %s: loop unavailable, keeping state", clarify_id)
++            return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
++        self._clarify_state.pop(clarify_id, None)
++
++        if P2CardActionTriggerResponse is None:
++            return None
++        response = P2CardActionTriggerResponse()
++        if CallBackCard is not None:
++            card = CallBackCard()
++            card.type = "raw"
++            card.data = self._build_resolved_clarify_card(
++                question=question, choice_text=resolved_text, user_name=user_name,
++            )
++            response.card = card
++        return response
++
++    async def _resolve_clarify(self, clarify_id: str, choice_text: str, user_name: str) -> None:
++        """Unblock the agent thread waiting on this clarify."""
++        try:
++            from tools.clarify_gateway import resolve_gateway_clarify
++            resolved = resolve_gateway_clarify(clarify_id, choice_text)
++            if resolved:
++                logger.info(
++                    "Feishu clarify button resolved (id=%s, choice=%r, user=%s)",
++                    clarify_id, choice_text, user_name,
++                )
++            else:
++                logger.warning(
++                    "Feishu clarify button: resolve_gateway_clarify returned False (id=%s)",
++                    clarify_id,
++                )
++        except Exception as exc:
++            logger.error("Failed to resolve gateway clarify from Feishu button: %s", exc)
++
+     async def _handle_reaction_event(self, event_type: str, data: Any) -> None:
+         """Fetch the reacted-to message; if it was sent by this bot, emit a synthetic text event."""
+         if not self._client:
+@@ -4222,12 +4664,95 @@ class FeishuAdapter(BasePlatformAdapter):
+     # =========================================================================
+ 
+     def _build_outbound_payload(self, content: str) -> tuple[str, str]:
+-        # Feishu post-type 'md' elements do not render markdown tables; sending
+-        # table content as post causes the message to appear blank on the client.
+-        # Force plain text for anything that looks like a markdown table.
+-        if _MARKDOWN_TABLE_RE.search(content):
+-            text_payload = {"text": content}
+-            return "text", json.dumps(text_payload, ensure_ascii=False)
++        # Detect signals
++        has_table = bool(_MARKDOWN_TABLE_RE.search(content))
++        card_spec = _parse_actionable_card(content)
++
++        if has_table or card_spec:
++            elements: List[Dict[str, Any]] = [{"tag": "markdown", "content": content}]
++            # Derive a meaningful title from the first non-empty line of the
++            # content so each card tells the user what it's about, instead of
++            # a generic "Quick reply".
++            derived_title = _derive_card_title(content)
++            card_type = card_spec["type"] if card_spec else None
++            if card_spec:
++                elements.append({"tag": "hr"})
++                columns: List[Dict[str, Any]] = []
++                if card_type == "multi_choice":
++                    # One column per option (capped at 4 for layout) + manual
++                    # input escape hatch.
++                    for opt in card_spec["options"][:4]:
++                        opt_text = opt["text"]
++                        # Truncate long option labels so the button reads cleanly.
++                        btn_label = f"{opt['label']}: {opt_text}"
++                        if len(btn_label) > 22:
++                            btn_label = btn_label[:21].rstrip() + "…"
++                        # Synthetic user message text = "我选 A: 选项内容" so the
++                        # agent sees both the label and the meaning.
++                        reply_text = f"我选 {opt['label']}: {opt_text}"
++                        columns.append({
++                            "tag": "column",
++                            "elements": [{
++                                "tag": "button",
++                                "text": {"tag": "plain_text", "content": btn_label},
++                                "type": "primary",
++                                "behaviors": [{
++                                    "type": "callback",
++                                    "value": {
++                                        "hermes_quickreply": f"choice_{opt['label']}",
++                                        "text": reply_text,
++                                    },
++                                }],
++                            }],
++                        })
++                else:  # yes_no
++                    columns.extend([
++                        {"tag": "column", "elements": [{"tag": "button",
++                            "text": {"tag": "plain_text", "content": "👍 是/好"},
++                            "type": "primary",
++                            "behaviors": [{"type": "callback", "value": {"hermes_quickreply": "yes", "text": "好的"}}]}]},
++                        {"tag": "column", "elements": [{"tag": "button",
++                            "text": {"tag": "plain_text", "content": "👎 不/算了"},
++                            "type": "danger",
++                            "behaviors": [{"type": "callback", "value": {"hermes_quickreply": "no", "text": "不用了"}}]}]},
++                    ])
++                # Universal escape hatch: manual input button is ALWAYS appended
++                # regardless of card type. This is the safety net for cases
++                # where the parser mis-classified or the user wants a free-form
++                # answer.
++                columns.append({
++                    "tag": "column",
++                    "elements": [{
++                        "tag": "button",
++                        "text": {"tag": "plain_text", "content": "💬 我自己打"},
++                        "type": "default",
++                        "behaviors": [{
++                            "type": "callback",
++                            "value": {"hermes_quickreply": "typing", "text": "（用户选择手动输入）"},
++                        }],
++                    }],
++                })
++                elements.append({"tag": "column_set", "columns": columns})
++            if card_spec:
++                title_prefix = "❓ " if card_type == "yes_no" else "📋 "
++            else:
++                title_prefix = "📋 "
++            title_body = derived_title or ("Quick reply" if card_spec else "Hermes")
++            title = title_prefix + title_body
++            template = "orange" if card_spec else "blue"
++            if card_spec:
++                # Inject the derived title into every button so the resolved
++                # card (after click) can keep the same context instead of
++                # falling back to a generic "Quick reply".
++                for col in elements[-1]["columns"]:  # last appended is column_set
++                    btn = col["elements"][0]
++                    btn["behaviors"][0]["value"]["card_title"] = title_body
++            card = {
++                "schema": "2.0",
++                "header": {"title": {"tag": "plain_text", "content": title}, "template": template},
++                "body": {"elements": elements},
++            }
++            return "interactive", json.dumps(card, ensure_ascii=False)
+         if _MARKDOWN_HINT_RE.search(content):
+             return "post", _build_markdown_post_payload(content)
+         text_payload = {"text": content}

@@ -1,0 +1,34 @@
+diff --git a/agent/prompt_builder.py b/agent/prompt_builder.py
+index 9c36d205a..2398c1602 100644
+--- a/agent/prompt_builder.py
++++ b/agent/prompt_builder.py
+@@ -527,7 +527,28 @@ PLATFORM_HINTS = {
+         "links are supported. "
+         "You can send media files natively: include MEDIA:/absolute/path/to/file "
+         "in your response. Images (.jpg, .png, .webp) are uploaded and displayed "
+-        "inline, audio files as voice messages, and other files as attachments."
++        "inline, audio files as voice messages, and other files as attachments. "
++        "\n\n"
++        "**Interactive cards (auto-rendered by the gateway).** The gateway "
++        "parses your reply and may promote it to a clickable card:\n"
++        "- Markdown tables → card render.\n"
++        "- Multi-choice: lines like `A: …`, `B: …` (caps + colon, no markdown "
++        "emphasis on the prefix) → one button per option + a 💬 manual-input "
++        "escape hatch.\n"
++        "The card title is taken from your first non-empty line — keep that "
++        "line a short summary.\n\n"
++        "**Response style rules (so cards render right and don't fire when you "
++        "don't want them to):**\n"
++        "1. **Multi-choice:** when offering 2+ options, after the body, on new "
++        "lines, use exactly `A：[option]` / `B：[option]` / `C：[option]` — no "
++        "bold/italic on the prefix.\n"
++        "2. **Clean output:** when no choice is needed, output "
++        "plain text — DO NOT manufacture a question just to trigger a card. "
++        "Trailing rhetorical or informational questions also turn into cards, "
++        "so end declaratively if you don't want one.\n\n"
++        "For complex decision trees with custom options the `clarify` tool is "
++        "still preferred — it renders proper option buttons regardless of "
++        "wording."
+     ),
+     "weixin": (
+         "You are on Weixin/WeChat. Markdown formatting is supported, so you may use it when "

@@ -182,11 +182,34 @@ subprocess.run([
 - 爸爸 DM：`oc_ffa37ba1bef2fb4e834aac29900e0eca`
 - 爸爸 open_id：`ou_c01660d7c077b57b85b8d14b1a374a26`
 
+## 🔑 飞书 App scope 两组分发（bot 跟 user 必须都开）
+
+很多人只开 user scope 就开干 → bot 收不到消息 / 点卡片按钮报 200340。**两组必须分别发布**：
+
+### Bot 侧（tenant scopes）— gateway 跑通必备
+```json
+{"scopes":{"tenant":[
+  "im:message","im:message.group_msg","im:message.p2p_msg","im:message:send_as_bot",
+  "im:resource","im:chat","im:chat:readonly",
+  "contact:user.base:readonly","contact:user.id:readonly",
+  "application:bot.basic_info:read",
+  "card:action.callback:read"
+],"user":[]}}
+```
+还要在开放平台开：① 事件订阅 `im.message.receive_v1` + `card.action.trigger` ② 机器人能力 ③ 卡片回传 Request URL（指向 gateway feishu webhook）。
+- 不开 `card:action.callback:read` → 卡片按钮点了报 200340
+- 不开 `application:bot.basic_info:read` → 启动时 bot open_id 自动识别失败
+- 不开 `contact:user.base:readonly` → sender 显示 `ou_xxx` 而不是名字
+
+### User 侧（user scopes）— agent 以主人身份操作文档
+完整清单见 `references/lark-cli-wiki-docs-pitfalls.md` 顶部 JSON 模板。
+
 ## 📚 知识库 / 云文档 / drive 操作踩坑
 
 完整集见 `references/lark-cli-wiki-docs-pitfalls.md`。要点：
 - `lark-cli wiki spaces create` 没 `--name` flag，只接 `--data` JSON
 - `lark-cli docs +update --content @file` 必须**相对路径**（cp 到 cwd）
+- `lark-cli docs +update --command` 有 `append / overwrite / block_replace / str_replace` — 整篇重写用 `overwrite`，追加用 `append`
 - **bot owner 的文档 API 删不掉 / 转不出去**（双向死锁），唯一可行：给 user 加 full_access → 用户去飞书 App 手动删；从一开始就用 user token 建文档
 - 飞书开权限：爸爸偏好「批量开通 JSON」`{"scopes":{"tenant":[],"user":[...]}}` 贴后台，**第一次就多开**避免反复要权限
 - device flow 拿 user token：`lark-cli auth login --domain all --no-wait --json` → 把 URL 给用户 → 用户授权后 `--device-code <code>` 续上
@@ -255,6 +278,32 @@ lark-cli docs +create \
 ### Parser 实现参考（爸爸提供的 JS 原型）
 
 `references/parse-actionable-card.js` —— 解析多选 (`A:` / `B:`)、行内 `还是`、动作 yes/no 三类，已内置 markdown 噪音剥离 (`*_~``)、Map 去重、最后问句兜底取（即使后面有「期待回复」之类废话）。Python 翻译版尚未上 gateway，留作 v4 升级蓝本。
+
+## 🩹 Hermes 源码 patch（远程机器复刻必需）
+
+这套 CARD-ONLY 体验依赖 hermes-agent 两个文件的本地 patch。爸爸自用 fork，已存进 skill 的 references：
+
+- `references/feishu_gateway.patch` — `gateway/platforms/feishu.py` 改动（+537 行）
+- `references/prompt_builder.patch` — `agent/prompt_builder.py` 改动（+23 行）
+
+### 在新机器上应用
+
+```bash
+cd ~/.hermes/hermes-agent
+git apply ~/.claude/skills/feishu-card-markdown/references/feishu_gateway.patch
+git apply ~/.claude/skills/feishu-card-markdown/references/prompt_builder.patch
+# 验证
+git status   # 应看到两文件 modified
+# 重启 gateway 让改动生效
+hermes gateway restart
+```
+
+应用冲突（upstream 改了 feishu.py）→ `git apply --3way --check ...` 看 conflict 块，手动 resolve，或派 CC 看 parse-actionable-card.js 蓝本重新实现。
+
+### 验证可用
+
+发一条带表格 + 末尾问号的回复给爸爸 → 飞书应收到橙 header 卡片 + 3 个按钮。点按钮卡片变绿 ✓。
+
 
 ### Prompt 端规范（agent/prompt_builder.py 飞书 hint 已落地）
 
