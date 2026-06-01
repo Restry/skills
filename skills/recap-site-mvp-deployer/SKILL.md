@@ -46,8 +46,10 @@ project-<name>.html  项目详情(下钻),Hero+CTA + 5 抽象 + 技术栈 + Mile
 ### 1. 准备工作目录 + 配色变量
 
 ```bash
-mkdir -p /tmp/recap-site && cd /tmp/recap-site
+mkdir -p ~/Downloads/recap-site && cd ~/Downloads/recap-site
 ```
+
+⚠️ **不要用 `/tmp`** — macOS 重启 / 系统清理会清掉。爸爸明确要求工作目录放 `~/Downloads/` 下能持久保留。本 skill 全部路径以 `~/Downloads/recap-site/` 为准。
 
 每个 HTML 文件顶部统一这套 CSS root vars:
 
@@ -93,25 +95,25 @@ mkdir -p /tmp/recap-site && cd /tmp/recap-site
 '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
   --headless --disable-gpu --hide-scrollbars \
   --window-size=1440,1400 \
-  --screenshot=/tmp/recap-site/_shot_page.png \
+  --screenshot=~/Downloads/recap-site/_shot_page.png \
   --virtual-time-budget=8000 \
-  file:///tmp/recap-site/page.html
+  file://~/Downloads/recap-site/page.html
 
 # 全页长截图(用于整体节奏)
 '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
   --headless --disable-gpu --hide-scrollbars \
   --window-size=1440,5500 \
-  --screenshot=/tmp/recap-site/_shot_page_full.png \
+  --screenshot=~/Downloads/recap-site/_shot_page_full.png \
   --virtual-time-budget=8000 \
-  file:///tmp/recap-site/page.html
+  file://~/Downloads/recap-site/page.html
 
 # 压缩成 jpg(vision_analyze 喜欢小图,< 8000px 长边)
 sips -Z 1600 -s format jpeg -s formatOptions 75 \
-  /tmp/recap-site/_shot_page_full.png \
-  --out /tmp/recap-site/_shot_page_full.jpg
+  ~/Downloads/recap-site/_shot_page_full.png \
+  --out ~/Downloads/recap-site/_shot_page_full.jpg
 
 # 给爸爸看
-# MEDIA:/tmp/recap-site/_shot_page_full.jpg
+# MEDIA:~/Downloads/recap-site/_shot_page_full.jpg
 ```
 
 **Lucide 加载要时间**:`--virtual-time-budget=8000`(8 秒)足够,低了会拍到没 icon 的页。
@@ -144,12 +146,12 @@ sips -Z 1600 -s format jpeg -s formatOptions 75 \
 set -a; source ~/.credentials/.env 2>/dev/null; set +a   # 加载 MVP_DEPLOYER__TOKEN
 
 cd /tmp/recap-site && rm -f _shot_*  # 截图别打包进去
-zip -rq /tmp/recap.zip . -x '_shot*' '.*'
+zip -rq ~/Downloads/recap.zip . -x '_shot*' '.*'
 
 MANIFEST='{"project":"recap","type":"node","port":3815,"host":"recap.mvp.restry.cn","run":"python3 -m http.server 3815","preserveData":false,"smokeDisabled":true}'
 curl -sS -X POST https://deploy.mvp.restry.cn/api/deploy \
   -H "Authorization: Bearer $MVP_DEPLOYER__TOKEN" \
-  -F "file=@/tmp/recap.zip" \
+  -F "file=@$HOME/Downloads/recap.zip" \
   -F "manifest=$MANIFEST"
 ```
 
@@ -215,10 +217,10 @@ blockquote.bot{border-left-color:var(--ink-soft);background:rgba(43,38,32,.04)}
 
 > 单页结构 + 详细截图同时给:
 >
-> MEDIA:/tmp/recap-site/_shot_page_top.jpg
+> MEDIA:~/Downloads/recap-site/_shot_page_top.jpg
 > (顶部首屏 - 短描述)
 >
-> MEDIA:/tmp/recap-site/_shot_page_full.jpg
+> MEDIA:~/Downloads/recap-site/_shot_page_full.jpg
 > (完整长截图 - 短描述)
 >
 > 结构:三行总结这页有什么
