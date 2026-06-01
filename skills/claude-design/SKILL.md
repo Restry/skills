@@ -384,6 +384,18 @@ If additional sections, pages, copy, or claims would improve the artifact, ask b
 
 When copy is necessary but not final, mark it as draft or placeholder.
 
+## Daddy-Specific Preferences (load first when designing for @dora)
+
+When generating HTML for @dora (爸爸), **read `references/daddy-preferences.md`
+first** — it encodes hard rules learned from real corrections:
+
+- **禁 emoji，用 Lucide 线图标 CDN**（emoji 显得低级，inline SVG sprite 容易渲染成黑块）
+- **5 张同级目录卡 = 一行 5 列或 2+3 均分**，禁伪不对称 8+4/6+6
+- **Anthropic 暖米色 palette** 是默认（`#f5f1ea` 背景 + `#cc785c` 强调）
+- **卡片用暖白 `#fbf7f0`**，不要纯白（跟米色背景色温冲突）
+- 写完 HTML **headless Chrome 截图 + vision_analyze 自检后**再给爸爸看
+- Lucide CDN 首次截图 `--virtual-time-budget=8000`（3000 拍到空 `<i>` 标签）
+
 ## Anti-Slop Rules
 
 Avoid common AI design sludge:
