@@ -1,0 +1,72 @@
+{
+  "skill_name": "html-report-anthropic-warm",
+  "version": "2.0.0",
+  "cases": [
+    {
+      "id": "formal-interactive-report",
+      "prompt": "把最近一周五个项目的工作做成管理层 HTML 报告，能按项目状态筛选并点开看详情。",
+      "should_trigger": true,
+      "expected_mode": "Anthropic 暖色正式报告",
+      "required_interactions": ["视图切换", "状态筛选", "详情展开或弹窗", "URL 状态"]
+    },
+    {
+      "id": "structured-module-map",
+      "prompt": "把这十个模块做成依赖图，点击节点查看职责和风险。",
+      "should_trigger": true,
+      "expected_mode": "结构化可视化",
+      "required_interactions": ["节点详情"]
+    },
+    {
+      "id": "light-report-sketch",
+      "prompt": "先随便画个报告草图，我想看看这个功能用起来是什么体验。",
+      "should_trigger": true,
+      "expected_mode": "轻量草图",
+      "interaction_optional": true
+    },
+    {
+      "id": "formal-with-module-map",
+      "prompt": "做一份正式项目报告给管理层，同时包含模块图和风险筛选。",
+      "should_trigger": true,
+      "expected_mode": "Anthropic 暖色正式报告",
+      "expected_composition": "正式报告为主容器，内部使用结构化模块图和筛选"
+    },
+    {
+      "id": "html-unspecified",
+      "prompt": "用 HTML 表达一下这三个方案。",
+      "should_trigger": true,
+      "expected_mode": "结构化可视化",
+      "must_not": "仅因出现HTML就升级为满规格正式报告"
+    },
+    {
+      "id": "implementation-plan-html",
+      "prompt": "把实施计划做成 HTML，要按阶段筛选任务并展开验收标准。",
+      "should_trigger": true,
+      "expected_mode": "结构化可视化",
+      "required_interactions": ["阶段筛选", "任务详情"]
+    },
+    {
+      "id": "explicit-markdown",
+      "prompt": "用 Markdown 写 PRD，不要 HTML。",
+      "should_trigger": false
+    },
+    {
+      "id": "pure-mermaid",
+      "prompt": "只给我 Mermaid 流程图文本，不要网页。",
+      "should_trigger": false
+    },
+    {
+      "id": "existing-html-small-fix",
+      "prompt": "把现有周报里的一句错字修掉，保持原链接和交互不变。",
+      "should_trigger": true,
+      "expected_mode": "保持原模式并局部patch",
+      "must_not": "重做整份页面或创建v2 URL"
+    },
+    {
+      "id": "static-only-failure",
+      "prompt": "做一个包含六个项目、五个时间点和多个状态的HTML周报。",
+      "should_trigger": true,
+      "expected_mode": "Anthropic 暖色正式报告",
+      "failure_if": "只有静态卡片和锚点导航，没有筛选、展开或视图切换"
+    }
+  ]
+}

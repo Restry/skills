@@ -171,24 +171,11 @@ print(f"page2: {len(page2):,} chars")
 - **footer 写死 v6 → 拆完仍是 v6** — 拆前先把 footer 改到最新版本,否则两页都带旧 footer
 - **共享 head 块时,`<title>` 替换要精确** — head 里有多处 `<title>`(meta, og:tag, twitter:tag)别都改成第一页标题。只改 `<title>...</title>` 那一个,og/twitter tag 保持通用
 
-## 部署到 i.dora
+## 发布与验证
 
-```bash
-SHARE=~/.openclaw/workspace/projects/memory-lane/public/share
-cp ~/report.html "$SHARE/"
-cp ~/report-details.html "$SHARE/"
-```
+两页都通过 `integration/publish-html` 发布到同一项目目录：
 
-URL:
-- 主页: `https://i.dora.restry.cn/share/report.html`
-- 详情: `https://i.dora.restry.cn/share/report-details.html`
+- 主页：`https://www.nexora.restry.cn/static/<project>/report.html`
+- 详情：`https://www.nexora.restry.cn/static/<project>/report-details.html`
 
-## 验证
-
-```python
-# 两页都打开 vision_analyze 一次,确保 nav 都正确显示当前页
-browser_navigate('https://i.dora.restry.cn/share/report.html')
-browser_vision(question='当前 nav 是否高亮①?跳到②的链接是否可点?')
-browser_navigate('https://i.dora.restry.cn/share/report-details.html')
-browser_vision(question='当前 nav 是否高亮②?跳到①的链接是否可点?')
-```
+覆盖前备份；临时上传后原子替换；逐页核对 SHA-256、HTTP 200、标题、导航激活态、跨页链接与 JavaScript 交互。两页都要用真实浏览器打开，并点击非默认导航。

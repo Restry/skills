@@ -1,14 +1,49 @@
 ---
 name: html-report-anthropic-warm
-description: Dad 的 HTML 报告/介绍/总结/"用 html 把 X 表达出来"标准工艺。Anthropic 暖色 + claude-design 流程 + 宽屏 + vision critique 迭代。任何 HTML 报告类需求都走这条。
-version: 1.0.0
+description: HTML 报告、项目分析、架构图、流程图、PR review、方案对比、时间线、仪表盘与体验草图的唯一入口。以 Anthropic 暖色报告工艺为母体，按轻量草图、结构化可视化、正式报告三档输出；多维内容必须提供有意义的内联 JavaScript 交互，如筛选、展开、视图切换、搜索或对比，而不是只做静态长页。
+version: 2.0.0
 metadata:
   hermes:
-    tags: [html, report, design, anthropic, claude-design, dora]
-    related_skills: [claude-design, popular-web-designs]
+    tags: [html, report, design, anthropic, visualization, interactive]
+    related_skills: [claude-design, popular-web-designs, publish-html]
 ---
 
 # Dad 的 HTML 报告标准工艺
+
+## 唯一入口与三档模式
+
+本 skill 已吸收原 `html-artifact-output` 与 `html-visualizer`。不要再加载另外两个近义入口；所有 HTML 交付先在这里选择主模式：
+
+| 用户意图 | 主模式 | 默认形态 |
+|---|---|---|
+| “草图 / 看看体验 / 一起拍板 / 示意一下” | **轻量草图** | 1 页、1–3 个核心 mock 或 before/after；不堆满规格章节 |
+| 对比、模块图、流程、PR review、时间线、看板等关系型内容 | **结构化可视化** | 匹配信息形状的 grid / timeline / annotated diff / inline SVG，并提供探索交互 |
+| “正式报告 / 管理层总结 / 项目分析 / 性能报告 / 完整介绍” | **Anthropic 暖色正式报告** | Hero + 真实 KPI + 分节叙事 + 图表 + 交互 + 浏览器/vision 收口 |
+
+冲突时：草图语义优先于“报告”字样；正式管理层报告是主容器，内部模块图使用结构化可视化；用户明确要 Markdown、纯文本、代码或 Mermaid 时遵循用户格式，不强制 HTML。
+
+## 交互是 HTML 的核心，不是装饰
+
+当页面包含多个时间点、项目、状态、方案或证据层级时，**只做锚点导航和静态卡片不算完成**。至少选择一种能降低认知负担的真实交互；正式报告和多维可视化通常应组合 2–4 种：
+
+- **筛选**：按项目、状态、日期、风险或负责人过滤；
+- **视图切换**：总览 / 时间线 / 项目 / 决策，或图 / 表 / 明细；
+- **展开与抽屉**：卡片点击查看证据、结果、下一步；
+- **搜索 / 排序**：条目较多时提供关键词、优先级或日期排序；
+- **对比切换**：before/after、方案 A/B/C、当前/目标；
+- **状态联动**：KPI、筛选器和可见卡片数量同步更新；
+- **URL 状态**：Tab 或视图写入 hash/query，刷新和分享后仍能回到同一状态。
+
+交互必须满足：
+
+1. Vanilla JavaScript 内联，不依赖构建工具；
+2. 鼠标、键盘和触屏都能使用；
+3. 有清晰 active / hover / focus 状态；
+4. 页面关闭 JS 后核心事实仍可阅读；
+5. 不为“动起来”而加无意义动画、轮播或 hover gimmick；
+6. 浏览器验收必须真实点击非默认视图、筛选器和详情，并确认 Console 0 error。
+
+轻量草图如果只有一个核心画面，可以不加交互；但必须明确这是有意保持轻量，而不是忘了 JavaScript。
 
 ## 触发条件
 
@@ -347,7 +382,7 @@ Dad 在 Feishu 上能直接看截图,点 HTML 在浏览器开。
 <!-- END: SECTION-01 -->
 ```
 
-改一个 section 就 `patch` 工具 old_string/new_string 操作 — `<!-- BEGIN: X -->` 到 `<!-- END: X -->` 这段是局部边界,改它不影响其它 section。**无需任何 build 步骤,改完直接 `cp` 到 i.dora 即可看到**。
+改一个 section 就用 `patch` 的 old_string/new_string 操作；`<!-- BEGIN: X -->` 到 `<!-- END: X -->` 是局部边界。改完仍按 `integration/publish-html` 的备份、临时上传、原子替换和公网验收流程发布。
 
 加新 section:在合适位置插一对新 marker + 内容,就这样。
 
@@ -375,7 +410,7 @@ Dad 在 Feishu 上能直接看截图,点 HTML 在浏览器开。
 - 真正需要 partial rebuild(改一段不重建其它)
 - Dad 主动说"做个模板,以后好改"
 
-走这条 → 加载 `templates/modular-report-skeleton/` 脚手架。
+走这条时必须在具体项目内建立并实跑自己的生成器；本合并 Skill 不附带未经验证的模块化脚手架。
 
 **反面教训**(2026-06-05): 给一个 5-section / 100KB 的报告搞 Python build,Dad 说"改一个东西特别费劲" — 因为他要改的是单行文字,却得 `cd ~/skills-report && vim sections/sXX.py && python3 build.py && cp ...`,4 步操作做 1 行替换。**这种规模该单 HTML 直接 patch**。
 
@@ -425,28 +460,15 @@ grep -rn "<old_number>" sections/ data/meta.json
 
 漏一处 vision 一定抓到,白白多一轮迭代。**改前先 `grep` 列清单再批量改**。
 
-## 📤 i.dora 静态发布(标准流程)
+## 📤 公网发布（唯一入口）
 
-Dad 的静态 HTML 都发到 `https://i.dora.restry.cn/share/<name>.html`:
+所有最终 HTML 加载 `integration/publish-html`，发布到：
 
-```bash
-# 唯一源文件目录
-ls ~/skills-report.html
+`https://www.nexora.restry.cn/static/<project>/<name>.html`
 
-# i.dora share 真实物理路径(2026-06-05 实测)
-SHARE=~/.openclaw/workspace/projects/memory-lane/public/share
+必须按项目子目录归类；已有同主题默认覆盖 canonical URL。覆盖前远端备份，先上传临时文件再原子 `mv`，最后核对本地/远端 SHA-256、HTTP 200、标题和关键 section，并在真实公网页面点击非默认视图、筛选器和详情弹窗，Console 必须 0 error。
 
-cp ~/skills-report.html "$SHARE/skills-report.html"
-# 多页时一起 cp
-cp ~/skills-report-details.html "$SHARE/skills-report-details.html"
-
-# 验证
-curl -sI https://i.dora.restry.cn/share/skills-report.html | head -3
-```
-
-**注意**:i.dora 是 memory-lane 这个 Next.js app 的 public 子目录,不是通用 nginx。**改这里就是改 prod**,不要在路径下放敏感文件。
-
-**别错**:写过 `~/clawd/projects/memory-lane/public/share/` 之类的旧路径 — 真实路径是 `~/.openclaw/workspace/projects/memory-lane/public/share/`。错路径会"成功 cp"到本地但 i.dora 上看不到新内容,Dad 一刷新发现没变会问"你部署了吗?"。
+禁止继续发布到旧 i.dora 路径，也禁止新造发布脚本、Hook 或托管服务。
 
 ## 历史参考
 
@@ -461,10 +483,16 @@ curl -sI https://i.dora.restry.cn/share/skills-report.html | head -3
 
 ## 支持文件
 
-- `references/hermes-internals-data-probes.md` — Hermes 系统类报告专用:实时数据探测命令(skill 数 / system prompt 长度 / token 估算 / 折叠收益预测公式 / 历史对比数据)。画 Hermes 内部机制报告时先 `skill_view(name='html-report-anthropic-warm', file_path='references/hermes-internals-data-probes.md')`
-- `references/multi-page-split-recipe.md` — 多页拆分实战脚本 + sticky nav CSS + 部署清单(2026-06-05 实战)。报告 100KB+ 或 Dad 主动要求拆页时加载
-- `references/ux-mockup-pattern.md` — 用户视角 UX mock 工艺(phone mock + before/after + feeling block + TLDR)。**用户问"对我什么体验"/"我用这个会看到啥"时必加载**,不是架构报告题。含 CSS 模板 + 多状态视觉权重规则 + 反 anti-pattern 清单
-- `templates/modular-report-skeleton/` — Python 模块化报告完整脚手架(build.py + sections/_helpers.py + README)。**仅在 Dad 明确要"模板化"且 8+ section 时**才走这条 — Dad 2026-06-05 明确表态"改一个东西特别费劲"反对默认走这个。详见 `templates/modular-report-skeleton/README.md`
+- `references/hermes-internals-data-probes.md` — Hermes 系统类报告的实时数据探针
+- `references/multi-page-split-recipe.md` / `references/multi-page-merge-recipe.md` — 多页拆分与合并
+- `references/ux-mockup-pattern.md` — 用户视角 UX mock
+- `references/layout-pattern-playbook.md` — module map、annotated diff、comparison、timeline 等结构化模式
+- `references/implementation-plan-html-recipe.md` — 可派活实施方案
+- `references/project-architecture-report-recipe.md` — 项目架构报告
+- `references/dynamic-plan-driven-agent-workflow.md` — 动态 Agent Workflow 方案
+- `references/hub-edge-worker-product-pattern.md` — Hub / Edge / Worker 拓扑
+- `references/conversation-to-architecture-baseline.md` — 多轮对话收敛为架构基线
+- `references/conversation-to-product-plan-html.md` — 多轮对话收敛为产品执行方案
 
 ## Pitfalls(实战教训)
 
@@ -501,7 +529,7 @@ curl -sI https://i.dora.restry.cn/share/skills-report.html | head -3
 - **categories.json 不是真"系统状态"** — 它是渲染层的展示子集(已过滤空壳分类、单 skill 分类、归档前快照等)。报"系统有 N 个分类 / M 个 skill"时**必须穿透到文件系统**:`find ~/.hermes/skills -maxdepth 1 -type d -not -name '.*'` 数分类,`find -L ... -name SKILL.md -not -path '*/.archive/*' \| wc -l` 数 skill(`-L` 跟符号链接,lark 等子目录全是软链)。一旦报告里数字跟实测对不上,Dad 立刻不信任全篇
 - **prompt token 实测必须直接调 `build_skills_system_prompt()`** — 自己模拟渲染(`desc[:60]` 截断、近似公式)会跟实际差 30%+。真实做法:`/home/resley/.hermes/hermes-agent/venv/bin/python -m ensurepip --default-pip && pip install tiktoken`,然后从 `agent.prompt_builder` import 函数,清 `_SKILLS_PROMPT_CACHE` 后调用,用 `tiktoken.encoding_for_model('gpt-4')` 算 token。临时改 `collapsed: true/false` 对比时记得跑完恢复
 - **Python build 系统反例** — 一个 5-section / 100KB 报告搞 Python build,Dad 改单行文字要 `vim sections/sXX.py && python3 build.py && cp ...` 4 步,他炸了。规则:能 patch 单 HTML 就别 build。形态 ③ 的门槛是 8+ section + 真正频繁迭代 + Dad 主动要"模板化"
-- **i.dora 部署路径不是 `~/clawd/...`** — 真实路径是 `~/.openclaw/workspace/projects/memory-lane/public/share/`。错路径会"成功 cp"但 i.dora 上看不到新内容,Dad 一刷新发现没变会问"你部署了吗?" — 写死在脚本里:`SHARE=~/.openclaw/workspace/projects/memory-lane/public/share`
+- **旧 i.dora 路径已废弃** — 所有 HTML 统一加载 `integration/publish-html`，发布到 `https://www.nexora.restry.cn/static/<project>/<name>.html`。
 - **拆多页时旧内容跨页残留要清** — 主页 + 详情页 2 页拆完,如果 mlops/data-science 之类已归档分类还在详情页的 persona 卡 / 单 skill 杂学卡里被列名(skill 数 8 → 应该 7),要手动 patch 删掉。Dad 看到"data-science(Jupyter)"还在,但实际 hermes 已经不加载它了 → 不一致 = 不信任
 - **Dad 说"分模块"= 拆 HTML 视觉模块,不是 Python build**(2026-06-05 真踩) — 听到"重构成模块化分块/以后改一块只重建对应 section"**先确认范围**,默认实现是阶梯 ① 单 HTML + section marker 注释边界。Dad 原话纠正:"我之前说让你分模块,只是让你分 HTML 的模块,不是让你分成这种编译式的"。任何 Python build 必须 Dad 明说"写个生成器/脚本"才能上,否则越层
 - **拆页面收尾必查清单** — `[ ]` 两页 footer 是否同步到最新版本 `[ ]` 删了的内容(归档分类)在 persona 卡 / hero / sec subtitle 是否都删干净 `[ ]` 共享 hero 数字两页一致 `[ ]` `<title>` 各页独立 `[ ]` 部署后 vision_analyze 两页都看一次 nav 激活态 `[ ]` 旧 monolith / 测试备份 / `.modular-archive/` 都 `rm`
