@@ -1,0 +1,42 @@
+{
+  "description": "Implement a production-ready dynamic image optimization interceptor inside the existing authenticated static-image delivery path. Transparently process eligible image requests carrying a valid width parameter, resize and encode the source as WebP, maintain a bounded local LRU disk cache, and return cached or generated files without introducing a new public API.",
+  "design_requirements": [
+    "Inspect the repository before editing and identify the existing static-image route, authorization boundary, response streamer, logging conventions, configuration system, and test framework.",
+    "Insert the interceptor after authentication and authorization but before the existing static-file response is committed.",
+    "Pass requests without the existing width parameter through the original handler unchanged.",
+    "Validate width as a strict base-10 integer in the configured range, defaulting to 1 through 4096.",
+    "Resolve source files only through application-owned identities and allowlisted roots; reject traversal, unsafe symlinks, non-regular files, unsupported raster types, and decompression bombs.",
+    "Build a deterministic canonical descriptor with fixed field order containing descriptor version, normalized source identity, source-version fingerprint, normalized transformation parameters, quality, and WebP format.",
+    "Generate a lowercase 32-character MD5 digest of the UTF-8 canonical descriptor and store artifacts under a sharded path such as <cache_root>/<first_two_hash_chars>/<hash>.webp.",
+    "Authorize the original source on every request before checking or returning a cached derivative.",
+    "On cache hit, explicitly update access time while preserving modification time and return a streamed WebP response.",
+    "On cache miss, acquire a per-key lock, recheck, enforce quota, decode and resize, encode to a same-filesystem temporary file, enforce final quota using actual output size, and atomically publish.",
+    "Use a 1,073,741,824-byte high watermark and an 858,993,459-byte low watermark.",
+    "Implement LRU eviction using access time ascending and stable relative path as tie-breaker.",
+    "Ignore temporary files, lock files, symlinks, directories, unknown files, and active generation targets during accounting and eviction.",
+    "Use a global eviction lock and per-key generation locks with bounded waits and consistent lock ordering.",
+    "Apply EXIF orientation, preserve aspect ratio and alpha, avoid enlargement by default, convert to sRGB, strip metadata, and encode WebP at quality 80 unless the existing contract specifies another validated value.",
+    "Return image/webp, exact Content-Length, an ETag derived from the cache key, and the application's existing security and cache-control headers.",
+    "Add contract, hashing, authorization, concurrency, atomic-publication, cache-hit, atime, source-invalidation, quota, LRU, and real integration tests.",
+    "Verify through the real authenticated request path and demonstrate a miss followed by a hit, explicit atime update, correct dimensions, valid WebP bytes, authorization enforcement, deterministic hashing, and bounded cache usage."
+  ],
+  "constraints": [
+    "Do not add a new public route, endpoint, controller, query API, or externally visible service.",
+    "Do not weaken, duplicate, or bypass existing authentication and authorization.",
+    "Do not return a cached artifact before authorizing its original source.",
+    "Do not accept a client-supplied filesystem path, cache key, output filename, MIME type, or hash.",
+    "Do not use MD5 for authentication, signatures, integrity verification, or security decisions.",
+    "Do not trust file extensions as image validation.",
+    "Do not fetch arbitrary remote URLs or introduce SSRF behavior.",
+    "Do not follow cache-root symlinks or allow resolved sources to escape configured roots.",
+    "Do not rely on implicit filesystem atime updates.",
+    "Do not publish partial files or place temporary files on a different filesystem from final artifacts.",
+    "Do not buffer large files entirely in memory when streaming APIs are available.",
+    "Do not hold the global eviction lock during slow decoding unless unavoidable in the target runtime.",
+    "Do not delete files outside the configured cache root.",
+    "Do not allow completed cache usage to exceed 1,073,741,824 bytes.",
+    "Do not silently reinterpret malformed parameters or silently collapse animation to a first frame.",
+    "Do not expose local paths, lock names, credentials, authorization headers, or confidential source metadata.",
+    "Do not claim completion until the real authenticated path has been exercised and all required tests pass."
+  ]
+}
