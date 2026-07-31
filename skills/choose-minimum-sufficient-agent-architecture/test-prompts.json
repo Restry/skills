@@ -1,0 +1,52 @@
+{
+  "skill": "choose-minimum-sufficient-agent-architecture",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "我们要做医院事前授权：病历是自由文本，但保险编码、金额阈值、补件循环和高金额拒付都有硬规则。该用普通函数、Agent、Workflow 还是人审？",
+      "expected_behavior": "应激活 choose-minimum-sufficient-agent-architecture，拆分任务并逐步分配函数、Agent、Workflow 与人类 gate 的控制权。",
+      "notes": "典型混合架构选型，包含开放判断、确定规则、循环与责任决策。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "Can you choose the minimum sufficient architecture for this customer-support process? I am unsure about agent vs workflow, retry granularity, and email side effects.",
+      "expected_behavior": "应激活 choose-minimum-sufficient-agent-architecture，按最低充分抽象、整体重试与不可重复副作用给出选型。",
+      "notes": "英文触发信号直接命中 minimum sufficient architecture 与 agent vs workflow。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "现在所有步骤都塞给一个 Agent 自己决定，我担心扣款失败后重跑会重复扣钱。帮我重新划分哪些由模型、代码和人决定。",
+      "expected_behavior": "应激活 choose-minimum-sufficient-agent-architecture，建立控制权矩阵，并把固定路径与不可重复副作用移出单次 Agent/Skill。",
+      "notes": "控制权、失败粒度和副作用同时出现，是本 skill 的核心触发组合。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "Workflow 已经确定了，请帮我设计订单流程的 Direct Edge、conditional routing、fan-out、fan-in 和消息类型。",
+      "expected_behavior": "不应激活本 skill；应进入 design-or-migrate-typed-agent-workflows，因为架构选型已完成，问题是 typed Workflow 图设计。",
+      "notes": "同书兄弟 skill 混淆诱饵：关键词包含 Workflow，但并未要求选择抽象。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "Agent 已经建好了，request-id、会话草稿、折扣参数校验和供应商重试分别应该放哪个 middleware 或 runtime context？",
+      "expected_behavior": "不应激活本 skill，应激活 place-agent-runtime-surfaces。",
+      "notes": "同书兄弟 skill 混淆诱饵：这是运行面定位，不是函数/Agent/Workflow 选型。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "我们确定要保留一个 Agent 做合同摘要，但还没决定摘要后的风险分级、审批和发信是继续让 Agent 做，还是改成 Workflow。",
+      "expected_behavior": "应激活本 skill，但只评估摘要之后尚未确定的控制边界；对已确定的 Agent 摘要不重新争论，并在选定 Workflow 后把图细节交给相邻 skill。",
+      "notes": "边界场景：系统部分选型已定、部分仍需按风险和副作用切割。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "至少 3 条 should_trigger + 2 条 should_not_trigger + 1 条 edge_case。全部 should_not_trigger 必须通过；含同书兄弟 skill 混淆测试。"
+}
