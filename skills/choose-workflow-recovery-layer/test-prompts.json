@@ -1,0 +1,87 @@
+{
+  "skill": "choose-workflow-recovery-layer",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft Learn 文档集（2026 固定副本）",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "保险理赔 Workflow 要跑两周：三个风控 Agent 并行，随后等待人工查勘；进程会重启，worker 会扩缩容和迁移。我们已经有标准 checkpoint，它够不够，还是要 Durable Task？请按故障域选择。",
+      "expected_behavior": "应激活 choose-workflow-recovery-layer，枚举跨进程、worker、跨天外部事件和并行聚合故障；说明标准 checkpoint 只恢复 Agent Framework runtime 内的 run，并选择 Durable Task 承载分布式执行历史、调度和长期等待。",
+      "notes": "正面场景：verified v13 的跨周、跨 worker 与 HITL 故障域选型。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "团队把四种东西都叫断点续跑：后台响应的 continuation token、序列化 AgentSession、Workflow checkpoint、Durable Extension。请做一张严格对照表，说明各自保存什么、不能恢复什么。",
+      "expected_behavior": "应激活 choose-workflow-recovery-layer，严格区分：continuation token 续接一次 Provider 响应/流；Session 序列化保存会话上下文；checkpoint 保存同一 run 的 superstep 边界状态；Durable Task 提供跨进程/worker 的持久历史与调度。不得互相替代。",
+      "notes": "正面场景：直接检验四层不可互代的核心辨析。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "自定义 Executor 用私有字段 accumulatedTotal 累计金额。恢复后 Workflow 能继续跑，但金额总回到 0。checkpoint 到底在哪个边界形成，save/restore hook 应该怎么实现和验？",
+      "expected_behavior": "应激活 choose-workflow-recovery-layer，指出 checkpoint 只在完整 superstep 末形成；盘点私有状态，在文档截面的 C# 中实现 OnCheckpointingAsync/OnCheckpointRestoredAsync，并通过非默认状态故障注入验证恢复与无故障基线一致。",
+      "notes": "正面场景：superstep 一致性边界与 ce26 自定义 Executor 状态丢失。"
+    },
+    {
+      "id": "should-trigger-04",
+      "type": "should_trigger",
+      "prompt": "付款 API 返回成功后，进程在本 superstep checkpoint 写入前崩溃；恢复后又执行了一次。我们用了 Durable，为什么还重复扣款？请给出恢复层和业务幂等方案。",
+      "expected_behavior": "应激活 choose-workflow-recovery-layer，解释 checkpoint/Durable 与外部付款没有原子提交，外部成功但进度未记录会被重放；设计稳定 payment/claim 幂等键、去重账本、outbox/可查询结果或补偿，并测试该崩溃窗。",
+      "notes": "正面场景：明确 Durable 也不提供外部副作用 exactly-once。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "研究图已经定了：同一 superstep 有 45 秒网页抓取和三段各 300ms 的摘要链。请标出每个 superstep、straggler、状态可见性和最早启动时间，不讨论跨进程恢复。",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill reason-about-superstep-barriers，分析既定图的 BSP 时间、屏障与可见性。只有随后要选 checkpoint/Durable 故障域时才组合本 skill。",
+      "notes": "兄弟 skill 诱饵：有 superstep/checkpoint 词面，但核心是 v10 屏障推理。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "医生签核请求要定义 Approve/Reject/RequestMoreTests，持久 Pending，恢复后重发同一 request_id，12 小时超时升级，并拒绝迟到批准。我们已经确定底层用 Durable。",
+      "expected_behavior": "不应激活本 skill 作为主方法；应激活兄弟 skill model-recoverable-human-decisions，设计 typed request/response 与状态转换。恢复层已经选定，本 skill 无需重新选层。",
+      "notes": "兄弟 skill 诱饵：核心是 v11 HITL 状态机，而非 v13 故障域选择。"
+    },
+    {
+      "id": "should-not-trigger-03",
+      "type": "should_not_trigger",
+      "prompt": "恢复 API 接受浏览器传来的 checkpoint ID。请设计 owner/tenant 映射、配置指纹、完整性校验、schema migration 和 TTL；我们已经确认标准 runtime checkpoint 足够。",
+      "expected_behavior": "不应激活本 skill 作为主方法；应激活兄弟 skill govern-agent-state-lifecycles，建立可信 restore gate。恢复层已决定，问题是状态归属、兼容性和完整性。",
+      "notes": "兄弟 skill 诱饵：v12 恢复安全治理，不是 checkpoint/Durable 选型。"
+    },
+    {
+      "id": "should-not-trigger-04",
+      "type": "should_not_trigger",
+      "prompt": "客服 Agent 只要在第二轮记住客户叫 Alice 和上一轮消息。没有 Workflow、worker 迁移或执行中的外部动作。应该怎么保存聊天历史？",
+      "expected_behavior": "不应激活本 skill；这是 Session/History 的会话连续性问题，应使用 separate-session-history-context-and-tools。不得因为需要序列化 AgentSession 就升级 Workflow checkpoint 或 Durable。",
+      "notes": "诱饵：明确检验 Session 序列化不等于 Workflow 执行恢复。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "一个长篇生成会运行 20 分钟，客户端可能断线，但 Provider 明确支持 background response 和 continuation token；服务进程与 worker 不会迁移，也没有 Workflow 图或外部副作用。因为任务很长，是否仍应上 Durable？",
+      "expected_behavior": "应调用本 skill 做最小故障域判断，并选择 continuation token 而非 checkpoint/Durable；持久保存最近 token、做退避轮询并处理 token 为空。任务时长本身不是升级 Durable 的充分条件。",
+      "notes": "边界：长任务表面像 Durable，实际只需续接单次 Provider 响应/流。"
+    },
+    {
+      "id": "edge-02",
+      "type": "edge_case",
+      "prompt": "同一 Durable Agent 在 Function App 重启后仍记得会话历史，所以团队断言它也一定能从任意 Workflow Executor 的中间一行继续，而且邮件绝不会重复。这个结论对吗？",
+      "expected_behavior": "应激活本 skill 并拆开三件事：Durable Session/thread 证明会话上下文连续；Workflow 只从已记录的调度/checkpoint 边界恢复，不承诺任意指令中间继续；邮件是外部副作用，仍需幂等/outbox/补偿，不能宣称 exactly-once。",
+      "notes": "边界：Durable 会话、Workflow 执行边界和外部副作用三个保证被错误合并。"
+    },
+    {
+      "id": "edge-03",
+      "type": "edge_case",
+      "prompt": "审批通常 20 秒内完成，但偶尔要等一周；应用在单进程运行，重启时可接受人工恢复。能否平时用标准 checkpoint，超过一分钟再无缝升级成 Durable？",
+      "expected_behavior": "应激活本 skill，拒绝仅按已等待时长临时切换的模糊设计；先以必须承受的最坏故障域和状态迁移能力选层。若一周等待、重启恢复和持久 timeout 是契约要求，起始即用 Durable；若这些故障明确可丢失且人工重启可接受，标准 checkpoint 可能足够，但必须写清降级和恢复责任。",
+      "notes": "边界：恢复层由契约故障域决定，不由运行中的计时阈值临时猜测。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "11 条测试：4 条 should_trigger、4 条 should_not_trigger、3 条 edge_case；全部诱饵必须通过，覆盖 reason-about-superstep-barriers、model-recoverable-human-decisions、govern-agent-state-lifecycles、separate-session-history-context-and-tools 四个兄弟 skill，并显式测试 continuation token、Session、checkpoint、Durable 与外部副作用非 exactly-once。"
+}
