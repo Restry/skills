@@ -1,0 +1,73 @@
+{
+  "skill": "reason-about-superstep-barriers",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft Learn 文档集（2026 固定副本）",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "欺诈 Workflow 同时启动 40 秒 OCR 和三个串行的 200ms 画像查询。图和 Edge 已经定了，为什么画像链不能 600ms 后先到决策节点？请按 superstep 算最早启动时间。",
+      "expected_behavior": "应激活 reason-about-superstep-barriers，标出每个 superstep，以该步最慢 Executor 计算屏障释放时间，并说明第二个画像查询必须等 OCR 所在步骤完成后才启动。",
+      "notes": "正面场景：verified v10 的核心时长悬殊 fan-out 推理。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "Executor A 和 B 在同一个 superstep。A 更新 shared state 后，B 为什么还是读到旧值？A 自己什么时候能看到，其他 Executor 最早什么时候能看到？",
+      "expected_behavior": "应激活 reason-about-superstep-barriers，说明写入者立即可见，其他 Executor 到下一 superstep 才可见，并修正同一步即时共享的错误假设。",
+      "notes": "正面场景：共享状态可见性边界。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "一个 superstep 里邮件已经发送，但另一分支尚未完成时进程崩了。checkpoint 在哪里，恢复可能重放什么？请明确它是否保证 exactly-once。",
+      "expected_behavior": "应激活 reason-about-superstep-barriers，指出 checkpoint 只在全步完成后形成，屏障前崩溃可能从上个完整 checkpoint 重放，并明确 checkpoint 不保证外部邮件 exactly-once，需幂等/outbox/补偿。",
+      "notes": "正面场景：checkpoint 边界与外部副作用重复窗口。"
+    },
+    {
+      "id": "should-trigger-04",
+      "type": "should_trigger",
+      "prompt": "Map this already-designed workflow into BSP supersteps. Identify each straggler, state when new messages become eligible for routing, and say whether combining a three-step short chain would remove a barrier without losing an observation or recovery boundary.",
+      "expected_behavior": "应激活 reason-about-superstep-barriers，生成 superstep 时间表、straggler 与消息跨步规则，并只在无需独立观测/恢复边界时建议合并短链。",
+      "notes": "正面场景：英文时间分析与合并判定。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "我要把广播式 GraphFlow 迁到 typed Workflow。请为分类结果定义消息类型，在 Direct、Switch、Fan-out、Fan-in 中选 Edge，并重建动态 ALL Join。",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill design-or-migrate-typed-agent-workflows，处理静态消息契约、Edge 与 Join 设计。",
+      "notes": "跨 skill 混淆诱饵：纯 v09 typed Edge 迁移，不是 BSP 时间/可见性/checkpoint。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "这个审批要等待两周，期间进程会重启、worker 会迁移。标准 Workflow checkpoint 够不够，还是要 Durable Task？",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill choose-workflow-recovery-layer，按故障域选择标准 checkpoint 或 Durable。",
+      "notes": "跨 skill 混淆诱饵：恢复基础设施选型属于 v13；本 skill 不扩张到跨 worker durability。"
+    },
+    {
+      "id": "should-not-trigger-03",
+      "type": "should_not_trigger",
+      "prompt": "一个普通 asyncio 服务的线程池只有 4 个 worker，HTTP 请求排队严重；系统里没有 Agent Framework Workflow 或 superstep。帮我调优。",
+      "expected_behavior": "不应激活本 skill；这是一般并发与线程池性能问题，不存在 BSP/superstep 调度语义。",
+      "notes": "诱饵：表面有并发和 worker，但域外于 Agent Framework superstep。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "我既不确定邮件分类该走 Switch 还是 Fan-out，又发现 30 秒附件扫描拖住短回复链。请一次分析完，但不要混淆职责。",
+      "expected_behavior": "应组合两个 skill：先由 design-or-migrate-typed-agent-workflows 按业务基数确定 Edge，再由本 skill 对冻结后的图标 superstep、计算屏障时间；本 skill 不应自行决定 Switch/Fan-out 业务语义。",
+      "notes": "边界：v09 静态 Edge 设计与 v10 运行时屏障分析同时存在。"
+    },
+    {
+      "id": "edge-02",
+      "type": "edge_case",
+      "prompt": "同一步里 LLM Agent 都按固定顺序被调度，所以我们能否断言每次恢复后分类结果和文本完全相同？",
+      "expected_behavior": "应激活本 skill 澄清边界：BSP 让消息推进顺序可推理，但 LLM 语义输出仍非确定；必须做 schema/业务验证和重复样本测试，不能把调度确定性写成语义确定性。",
+      "notes": "边界：明确用户要求的 LLM 非确定性警告。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "包含 4 条 should_trigger、3 条 should_not_trigger、2 条 edge_case；全部诱饵必须通过，并覆盖 v09 与 v13 两类兄弟 skill 混淆。"
+}
