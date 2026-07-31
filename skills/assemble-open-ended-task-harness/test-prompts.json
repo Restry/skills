@@ -1,0 +1,52 @@
+{
+  "skill": "assemble-open-ended-task-harness",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft Learn 文档集（2026 固定副本）",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "我要让 agent 一夜完成 120 个模块的遗留仓库升级。路径可以自主决定，但早上必须交付可回滚补丁；请给它计划、预算、审批和真实完成门。",
+      "expected_behavior": "应激活 assemble-open-ended-task-harness，确认目标明确但路径开放，并组装 Plan/Todo、预算、最小能力面、持久化和证据化 completion loop。",
+      "notes": "长期开放编码任务，且明确要求 Harness 的多项运行纪律。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "Assemble a harness for a long-running open-ended research agent. It needs file memory, optional web search, two independent background agents, cost limits, and approval before publishing anything.",
+      "expected_behavior": "应激活 assemble-open-ended-task-harness，按威胁模型裁剪能力，限定后台委派，并为发布动作保留审批。",
+      "notes": "英文精确 trigger，目标开放且同时涉及预算、能力与审批。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "我们的 autonomous agent 经常说任务完成了，但其实没跑测试，还默认能读整个磁盘和执行 shell。怎么把它变成可控的长任务运行壳？",
+      "expected_behavior": "应激活 assemble-open-ended-task-harness，建立真实产物/测试门、最小文件与 Shell 权限，并明确 deny-list 不是沙箱。",
+      "notes": "命中失控、权限过宽和虚假完成三个 Harness 治理信号。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "订单扣款必须先验库存，再扣款，再发邮件；失败只能从上一个已完成步骤恢复，顺序绝不能让模型改。请设计执行图。",
+      "expected_behavior": "不应激活本 skill；应使用显式 Workflow，并为扣款和邮件补业务幂等/补偿。",
+      "notes": "诱饵：固定顺序、不可重复副作用和步骤级恢复，不是开放式 Harness。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "聊天历史快超 token 了。请把 Trigger 和 Target 分开，按工具结果折叠、摘要、滑窗、截断排序，并保证 tool call/result 不被拆开。",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill control-agent-history-compaction-loss。",
+      "notes": "跨 skill 混淆诱饵：这是兄弟 skill 的历史压缩损失控制场景。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "我要一个 agent 连续工作 10 小时，中间机器可能重启，也可能换 worker；任务本身需要探索，但最终生产发布顺序必须固定。能只用 Harness 吗？",
+      "expected_behavior": "可调用本 skill 分析开放探索段，但必须明确 Harness 不足以独立满足要求：探索段可用 Harness，固定发布段转 Workflow，跨进程/worker 恢复转 Durable；不得把逐调用历史持久化称为 Durable。",
+      "notes": "边界：同一系统同时包含 Harness、Workflow 与 Durable 的职责。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "至少 3 条 should_trigger + 2 条 should_not_trigger + 1 条 edge_case；全部诱饵必须通过，其中包含兄弟 skill 混淆测试。"
+}
