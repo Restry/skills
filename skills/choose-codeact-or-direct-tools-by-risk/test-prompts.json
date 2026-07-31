@@ -1,0 +1,52 @@
+{
+  "skill": "choose-codeact-or-direct-tools-by-risk",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "财务 Agent 要循环查询 30 个台账并聚合差异，同时还能创建付款批次和给供应商发邮件。哪些放 CodeAct，哪些保留 direct tools，才能减少往返又逐项审批？",
+      "expected_behavior": "应激活 choose-codeact-or-direct-tools-by-risk：按调用密度与四因子风险切分；窄接口低风险查询/聚合可进 CodeAct，付款与发信保留直接工具并逐次展示参数审批。",
+      "notes": "典型混合执行面，对应 verified v07 的预测问题。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "We have twenty safe lookups with loops and aggregation, plus one irreversible delete. Should we use execute_code for everything, and how do we preserve per-call approval?",
+      "expected_behavior": "应激活本 skill；识别低风险密集 lookup 的 CodeAct 收益，并把 irreversible delete 保持为 direct-only、独立审批操作，拒绝把全部动作包进一次 execute_code 批准。",
+      "notes": "英文 trigger：loops/aggregation、execute_code、per-call approval。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "我们已经给 Hyperlight 沙箱配置了 AllowedDomains 和 FileMounts。通过 call_tool 调到宿主数据库工具时，这些限制会自动保护宿主网络和凭据吗？上线前怎么验证？",
+      "expected_behavior": "应激活本 skill，并明确 call_tool 回到宿主进程；沙箱限制不会自动约束宿主回调，需单独收窄宿主身份、凭据、文件、网络、参数和业务授权，再做越权 fail-closed 测试。",
+      "notes": "核心宿主逃逸边界。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "移动端理财 Agent 的 RAG 文档、OCR 结果、tool message 和 AG-UI state 经过模型重述以后还能信吗？请画 provenance 和输出 sink 校验图。",
+      "expected_behavior": "不应激活本 skill；应激活 preserve-trust-across-agent-dataflows，因为问题是数据来源、角色与变换后的信任，不是 CodeAct/direct tools 编排。",
+      "notes": "跨 skill 混淆诱饵：兄弟 Skill v08。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "我们已有一个标准 MCP 服务，也可以自己写 Function Tool，云模型还提供 Hosted Tool。请按可移植性、托管责任和版本支持帮我选能力来源。",
+      "expected_behavior": "不应激活本 skill；这是 Function/MCP/Hosted Tool 的来源—控制—托管选型，尚未进入是否用 execute_code 编排调用的问题。",
+      "notes": "术语相近诱饵：出现 tool，但不是调用密度或审批粒度。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "任务只有两次调用，都是只读，但第二次会批量读取全公司工资。既然没有写操作，是否都可以放进一次 CodeAct 并自动批准？",
+      "expected_behavior": "应谨慎激活本 skill：调用少意味着 CodeAct 收益有限；批量工资读取虽只读，却在数据敏感度和影响范围上属高风险，应保留窄接口、显式授权与适当审批，不能用“只读”推导自动批准。",
+      "notes": "边界：少量调用 + 无副作用，但高敏感度/大范围。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "3 条 should_trigger、2 条 should_not_trigger、1 条 edge_case；全部诱饵必须通过，且 should-not-trigger-01 是兄弟 Skill 混淆测试。"
+}
