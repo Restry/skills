@@ -1,0 +1,59 @@
+{
+  "skill": "separate-session-history-context-and-tools",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "销售助手要保存本轮报价草稿、完整聊天记录、跨会话客户偏好、每轮必遵守的租户政策和实时库存。请判断分别放 Session、History Provider、Context Provider 还是 Tool。",
+      "expected_behavior": "应激活 separate-session-history-context-and-tools，逐项按生命周期、账本职责、触发者和每轮必要性分层，并给出验证清单。",
+      "notes": "典型四机制归属设计。"
+    },
+    {
+      "id": "edge-02",
+      "type": "edge_case",
+      "prompt": "Our shared AIContextProvider keeps currentUserId and memoryId in instance fields, and concurrent tenants sometimes see each other's preferences. Where should this state live?",
+      "expected_behavior": "这是两个 Skill 的真实交界：以‘会话值应该放哪里’为主时可激活 separate-session-history-context-and-tools，把值迁入 AgentSession；以‘共享实例导致跨 tenant 污染’为主时可激活 govern-agent-state-lifecycles。无论主选谁，都必须识别 Provider 实例不可保存会话字段并要求多租户并发验证。",
+      "notes": "边界测试：信息归属与跨 run/tenant 生命周期同时成立，允许两个兄弟 Skill 任一作为主入口，但动作必须一致。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "退货政策每轮都必须遵守，但实时物流只在用户追问时查。Should I inject every run or fetch on demand? 另外 provider 的 conversation_id 能直接给客户端用来续接吗？",
+      "expected_behavior": "应激活本 skill：政策用可信 Context Provider 主动注入，物流做窄 Tool；conversation_id 由应用映射 owner，不能充当授权边界。",
+      "notes": "同时覆盖 Context-vs-Tool 与 Session ID 所有权。"
+    },
+    {
+      "id": "should-trigger-04",
+      "type": "should_trigger",
+      "prompt": "我们把聊天历史、会话草稿、公司政策、RAG 文档和实时库存全塞进同一个 system prompt 了。请只按 Session、ChatHistoryProvider、AIContextProvider、Tool 四种责任重新分层，先不讨论持久化安全和 Workflow。",
+      "expected_behavior": "应精准激活 separate-session-history-context-and-tools：会话草稿归 Session，消息账本归 ChatHistoryProvider，每轮必见政策/RAG 归可信 AIContextProvider，实时库存归按需 Tool。",
+      "notes": "补充纯净正例：只测试四机制信息归属，不混入生命周期、安全或 Workflow。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "我要给第三方 Agent Skill 的 load/read/run 三种工具设计审批策略，还要把脚本放进容器并限制网络、CPU 和参数白名单。",
+      "expected_behavior": "不应激活本 skill；应激活 design-and-govern-executable-agent-skills。",
+      "notes": "跨 skill 混淆诱饵：兄弟 Skill v04，主题是 Skill 供应链与脚本执行治理。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "我需要在 Agent run、Function invocation 和 ChatClient middleware 之间放 request-id、折扣参数校验和模型重试，怎么选层？",
+      "expected_behavior": "不应激活本 skill；应转 place-agent-runtime-surfaces，因为问题是 middleware 执行面而非 Session/History/Context/Tool 分工。",
+      "notes": "相近术语诱饵：都提 context/runtime，但责任不同。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "客户偏好通常跨会话保存，但当前回复每次都需要看到；我是不是应该把整份偏好永久塞进 AgentSession？",
+      "expected_behavior": "应调用本 skill 处理归属边界，但不能简单把长期数据塞进 Session：长期偏好留在外部持久存储，Session 保存本会话 key/状态，由可信 Context Provider 每轮按 owner 读取必要片段；若问题进一步涉及存储完整性和 TTL，再转状态生命周期治理。",
+      "notes": "边界在于跨会话持久数据与每轮主动注入同时成立。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "至少 3 条 should_trigger、2 条 should_not_trigger、1 条 edge_case；全部诱饵必须通过，且 should-not-trigger-01 为兄弟 Skill 混淆测试。"
+}
