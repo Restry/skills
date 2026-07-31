@@ -1,0 +1,66 @@
+{
+  "skill": "design-or-migrate-typed-agent-workflows",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft Learn 文档集（2026 固定副本）",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "我要新建一个邮件 Agent Workflow：分类 Agent 输出结构化结果；垃圾邮件只去标记器，正常邮件去回复器；长邮件还要并行摘要，最后按实际触发的分支汇总。请定义 Executor I/O、typed Edge 和 Join。",
+      "expected_behavior": "应激活 design-or-migrate-typed-agent-workflows，走新建设计入口，定义结构化分类输出，按 one-of-N 与 1→many 选择显式 Edge，并把动态 Join 状态放在接收方。",
+      "notes": "正面场景：真实 typed routing、动态 fan-out 与汇聚设计。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "We are migrating an AutoGen GraphFlow where every incident message is broadcast to four agents and transitions activate targets. Rebuild it as typed Agent Framework dataflow, including ANY/ALL joins, pauses, minimal target messages, and behavior-equivalence tests.",
+      "expected_behavior": "应激活 design-or-migrate-typed-agent-workflows，走迁移入口，盘点广播/transition/activation，再重建 typed Edge、显式 Join state、暂停边界和等价回归。",
+      "notes": "正面场景：英文迁移入口，命中 control-flow → typed dataflow。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "这个父 Workflow 要嵌入一个文本处理子图。请让父图只看真实 input/output types，并在 build 阶段检查类型兼容、图连通、executor binding、非法或重复 Edge。",
+      "expected_behavior": "应激活 design-or-migrate-typed-agent-workflows，把子图绑定成有明确类型契约的 Executor，并建立四类 build-time validation 门禁。",
+      "notes": "正面场景：typed 子 Workflow 组合与构建期结构校验。"
+    },
+    {
+      "id": "should-trigger-04",
+      "type": "should_trigger",
+      "prompt": "Our routing graph sends the whole customer record to every agent and lets each decide whether to act. Redesign it with explicit targets, the smallest typed messages, a Switch default, and schema validation before routing.",
+      "expected_behavior": "应激活 design-or-migrate-typed-agent-workflows，消除广播自筛选，定义最小消息契约、Switch default 与 Agent 结构化输出验证。",
+      "notes": "正面场景：过度广播、最小数据暴露与 typed routing 修复。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "图已经 build 成功，Edge 和类型都没问题。OCR 要 40 秒，另一条链有三个 200ms Executor；短链为什么不能 600ms 后到决策节点？共享状态何时对别的 Executor 可见？",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill reason-about-superstep-barriers，用 BSP 屏障与下一 superstep 可见性解释，不重做 Edge 设计。",
+      "notes": "跨 skill 混淆诱饵：纯 superstep 时间与状态可见性问题，属于 v10。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "我们还没决定专家之间该用 Handoff、Agent-as-Tool、Group Chat 还是跨团队 A2A。请先按所有权和部署边界选协作模式。",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill choose-multi-agent-coordination-and-delegation，先确定组织与所有权语义，再考虑 typed Edge 落图。",
+      "notes": "跨 skill 混淆诱饵：尚处于多 Agent 协作模式选型，不是 Workflow 图实现。"
+    },
+    {
+      "id": "should-not-trigger-03",
+      "type": "should_not_trigger",
+      "prompt": "一个普通纯函数就能按税率表计算结果，输入输出固定，也不需要 Agent、并行或恢复。帮我把它画成 typed Agent Workflow。",
+      "expected_behavior": "不应激活本 skill；应拒绝过度设计并回退普通函数，因为最低充分抽象已足够。",
+      "notes": "诱饵：字面要求 typed Workflow，但需求明确不需要 Workflow。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "事故响应图既要重新定义广播、Switch 和 ALL Join，又担心一个 60 秒取证分支拖住两步短链。应该用哪个 skill？",
+      "expected_behavior": "应先调用本 skill 完成静态 typed dataflow 与 Join 语义，再组合 reason-about-superstep-barriers 分析屏障时间；不得用性能猜测替代 Edge 业务语义，也不得让本 skill 吞掉 BSP 分析。",
+      "notes": "边界：同一任务同时包含 v09 静态 Edge 设计与 v10 运行时时间推理。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "包含 4 条 should_trigger、3 条 should_not_trigger、1 条 edge_case；全部诱饵必须通过，并覆盖 v10 与 v14 两类兄弟 skill 混淆。"
+}
