@@ -1,0 +1,73 @@
+{
+  "skill": "choose-multi-agent-coordination-and-delegation",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "安全事件响应要并行做主机取证和恶意样本分析，之后进入法务判断；红蓝队还要反复互评，未知攻击路径可能需要动态重规划，必要时专家接管会话。请帮我选择最小多 Agent 拓扑。",
+      "expected_behavior": "应激活 choose-multi-agent-coordination-and-delegation；先确认各角色确有边界，再按独立取证用 Concurrent、汇合后的依赖用 Sequential、共享互评用 Group Chat、仅未知路径的 stall/replan 段用 Magentic，并单独判断专家接管是否 Handoff。",
+      "notes": "正面场景：同一系统混合依赖、并行、共享协作、动态规划和所有权转移，要求输出最小混合拓扑。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "Our primary support agent sometimes asks a tax specialist for one calculation, but in other cases the specialist must take over the customer conversation. The specialist is owned by another team and runs as a Python service. Should we use agent-as-tool, handoff, A2A, or a combination?",
+      "expected_behavior": "应激活本 skill；区分窄子结论的 Agent-as-Tool 与完整会话接管的 Handoff，并因跨团队/服务/语言使用 A2A 作为通信边界，明确 A2A 可与两种所有权语义组合而不自动等于其中任何一种。",
+      "notes": "正面场景：同时考察任务所有权、上下文可见性和部署边界。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "三个研究员拿到同一份材料：有时只要独立意见后投票，有时要在共享历史里互相质询，有时下一步完全取决于当前进展并要检测停滞。分别该选 concurrent、group chat 还是 Magentic？",
+      "expected_behavior": "应激活本 skill；独立意见与最终聚合选 Concurrent，共享历史多轮质询选 Group Chat，只有路径未知且需要计划/进度账本/停滞检测/重规划时选 Magentic。",
+      "notes": "正面场景：精确区分三个常被混用的协作模式。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "我还没决定这个报销系统该用普通函数、单 Agent、Agent Skill、Workflow、Harness 还是人审。请按副作用和重试粒度选最低充分架构。",
+      "expected_behavior": "不应激活本 skill；应激活 choose-minimum-sufficient-agent-architecture，因为问题仍是全局抽象与控制权选型，尚无真实多 Agent 职责。",
+      "notes": "兄弟 skill 混淆诱饵：包含 Agent 与 Workflow，但主体是 v01 的最低充分抽象。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "我们已经决定用 Concurrent 做四路分析，请帮我定义每个 Executor 的输入输出类型、fan-out/fan-in Edge、动态 ALL Join 和 build-time validation。",
+      "expected_behavior": "不应激活本 skill；应激活 design-or-migrate-typed-agent-workflows，因为协作模式已定，问题是 typed Edge、Join 与构建期门禁。",
+      "notes": "兄弟 skill 混淆诱饵：出现 Concurrent，但决策已完成，后续属于 v09 落图。"
+    },
+    {
+      "id": "should-not-trigger-03",
+      "type": "should_not_trigger",
+      "prompt": "这个跨两周理赔流程会跨进程重启和 worker 迁移，还要等待人工查勘。标准 Workflow checkpoint 够吗，还是必须上 Durable Task？",
+      "expected_behavior": "不应激活本 skill；应激活 choose-workflow-recovery-layer。A2A 或多 Agent 拓扑不能回答 checkpoint 与 Durable 的故障域选择。",
+      "notes": "兄弟 skill 混淆诱饵：跨进程不等于 A2A；问题主体是 v13 恢复层。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "我们想把一个客服 Agent 拆成四个 Agent，只因为它现在有四段提示词；四段都用同一个模型、同一套工具、同一权限，而且始终按固定顺序执行。多 Agent 会更好吗？",
+      "expected_behavior": "应激活本 skill 做必要性门禁，并明确返回“不需要多 Agent”；优先把固定逻辑整理为单 Agent 加确定步骤或 Workflow，不得为了角色命名制造四个 Agent。",
+      "notes": "关键边界：调用本 skill 后允许且应当得出无需多 Agent的结论。"
+    },
+    {
+      "id": "edge-02",
+      "type": "edge_case",
+      "prompt": "主 Agent 要调用远端合规 Agent 获取一份窄范围审查结论。远端由合作方维护，但不应看到完整客户会话，也不接管后续沟通。",
+      "expected_behavior": "应激活本 skill；部署上选 A2A，所有权上保持 Agent-as-Tool 语义，只传最小显式参数并由主 Agent 保留总责；不应因远端而选择 Handoff。",
+      "notes": "边界：验证 A2A 是部署协议、Agent-as-Tool 是所有权语义，两者可组合。"
+    },
+    {
+      "id": "edge-03",
+      "type": "edge_case",
+      "prompt": "写作者和审稿者要轮流看完整历史改稿，但流程永远是写一版、审一版，最多三轮，没有动态计划，也不需要检测停滞后重规划。该用 Group Chat 还是 Magentic？",
+      "expected_behavior": "应激活本 skill 并选择带明确轮次与批准终止条件的 Group Chat；不应升级 Magentic，因为没有动态计划、进度账本、停滞检测或重规划需求。",
+      "notes": "边界：防止把所有多轮共享协作都误判成 Magentic。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "3 条 should_trigger + 3 条 should_not_trigger + 3 条 edge_case。全部 should_not_trigger 必须通过；诱饵覆盖 v01、v09、v13 三个兄弟 skill，并验证跨进程不等于 A2A、远端不等于 Handoff。"
+}
