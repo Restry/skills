@@ -1,0 +1,52 @@
+{
+  "skill": "place-agent-runtime-surfaces",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "多租户销售 Agent 需要 request-id、整轮审计、供应商模型重试、折扣工具参数校验和会话内草稿，这些分别放哪个 middleware 或 runtime context？",
+      "expected_behavior": "应激活 place-agent-runtime-surfaces，并把责任映射到 Agent/ChatClient/Function middleware 与 AdditionalProperties/StateBag。",
+      "notes": "同时覆盖横切逻辑和三种运行数据生命周期，是本 skill 的完整正面场景。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "Which middleware layer should own LLM transport retries versus per-tool authorization checks? Also, where should per-run correlation IDs live?",
+      "expected_behavior": "应激活 place-agent-runtime-surfaces，将传输重试放 ChatClient 层、工具授权放 Function invocation 层、correlation ID 放 AdditionalProperties。",
+      "notes": "英文触发信号命中 which middleware、per-tool 与 per-run。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "我们同时给 Agent 和 IChatClient 开了 OpenTelemetry，同一 prompt 在 trace 里出现两次；而且准备把本地 Agent 换成 A2A 远端 Agent。帮我重新放置观测逻辑。",
+      "expected_behavior": "应激活 place-agent-runtime-surfaces，去除重复采集，并验证远端 AIAgent 不依赖本地 ChatClient middleware。",
+      "notes": "重复遥测与远端扩展面缺失正是该方法要求的验证场景。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "这个订单审批需求究竟该用普通函数、Agent Skill 还是 Workflow？其中有自由文本判断、扣款和人工批准。",
+      "expected_behavior": "不应激活本 skill，应激活 choose-minimum-sufficient-agent-architecture。",
+      "notes": "同书兄弟 skill 混淆诱饵：用户在做抽象与控制权选型，还没进入运行面定位。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "请帮我区分 AgentSession、ChatHistoryProvider、AIContextProvider、长期偏好、RAG 政策和实时库存 Tool 应该怎么分层。",
+      "expected_behavior": "不应激活本 skill，应激活 separate-session-history-context-and-tools。",
+      "notes": "同书兄弟 skill 混淆诱饵：这是 Session/History/Context/Tool 职责分离，不是 middleware surface。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "租户政策每轮都要注入，同时 request-id 只活一次 run，折扣上限要在工具调用前强制校验。我不确定这是 Context Provider 问题还是 Middleware 问题。",
+      "expected_behavior": "应部分激活本 skill，定位 request-id 与工具参数校验；租户政策的主动注入应明确转交 separate-session-history-context-and-tools，而不是强塞进本 skill。",
+      "notes": "边界场景：一个请求同时跨越 runtime surface 与 Context Provider 职责，要求正确拆分而非抢占全部问题。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "至少 3 条 should_trigger + 2 条 should_not_trigger + 1 条 edge_case。全部 should_not_trigger 必须通过；含同书兄弟 skill 混淆测试。"
+}
