@@ -1,0 +1,52 @@
+{
+  "skill": "control-agent-history-compaction-loss",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft Learn 文档集（2026 固定副本）",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "客服 Agent 自管了 80 轮历史，旧日志很大，但最近还有未关闭变更单和工具结果。请设计 Trigger、Target 和压缩顺序，别破坏事实与工具协议。",
+      "expected_behavior": "应激活 control-agent-history-compaction-loss，先计算带余量的 Target，再定义 token-based Trigger，按温和到激进策略处理，并保护未关闭状态与 MessageGroup。",
+      "notes": "典型自管长历史、关键状态与工具原子性场景。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "Design a Trigger–Target–Strategy compaction pipeline. Collapse verbose tool results first, summarize older spans second, keep a sliding window only if needed, and truncate solely as an emergency backstop.",
+      "expected_behavior": "应激活 control-agent-history-compaction-loss，并在每层后重评 Target，满足即停止。",
+      "notes": "英文精确 trigger，明确四层损失顺序。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "历史超 token 了。我能不能只删 assistant 的 tool call，保留对应 tool result？另外 Target 应该等于模型上下文硬上限吗？",
+      "expected_behavior": "应激活 control-agent-history-compaction-loss，拒绝拆散 tool call/result，要求按 MessageGroup 原子操作，并为输出、schema 与安全指令预留空间，使 Target 低于硬上限。",
+      "notes": "同时测试 MessageGroup 原子性与 Target 余量。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "我们用 Foundry Agent，历史和上下文由服务端管理。我想在本地给消息列表挂一个 CompactionStrategy。",
+      "expected_behavior": "不应激活本 skill 执行本地策略；应指出 service-managed context 上本地 compaction strategy 无效，并转查服务端上下文能力。",
+      "notes": "诱饵：不满足 self-managed history 的适用前提。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "帮我给一夜运行的代码 Agent 组装 Plan/Todo、文件和 Shell 权限、发布审批、预算、后台代理以及真实测试完成门。",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill assemble-open-ended-task-harness。",
+      "notes": "跨 skill 混淆诱饵：这是兄弟 skill 的整个 Harness 组装场景，不是历史压缩。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "对话还没超上限，但成本开始升高；旧消息里包含报价承诺和未完成付款。我想用小模型摘要后删原文，可以吗？",
+      "expected_behavior": "可调用本 skill 做损失评估，但不得直接把摘要当权威记录；应先外置报价承诺和付款状态，量化成本 Trigger 与 Target，回放验证摘要，再决定是否启用。若无足够收益或事实无法可靠外置，则不压缩。",
+      "notes": "边界：压缩收益存在，但关键业务事实禁止只依赖有损摘要。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "至少 3 条 should_trigger + 2 条 should_not_trigger + 1 条 edge_case；全部诱饵必须通过，其中包含兄弟 skill 混淆测试。"
+}
