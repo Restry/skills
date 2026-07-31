@@ -1,0 +1,52 @@
+{
+  "skill": "design-and-govern-executable-agent-skills",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "我们有 500 个领域 Skill。请设计 advertise → load → read resources → run scripts 的打包方式，让常驻上下文尽量小，同时明确每层审批，尤其不要把脚本自动批准。",
+      "expected_behavior": "应激活 design-and-govern-executable-agent-skills，分别设计装载层与授权层，明确四级披露不是自动权限升级，并给出拆包及审批完成标准。",
+      "notes": "典型渐进披露与授权轴并行治理。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "A vendor sent us an MCP archive skill with manuals and a certificate inventory script. How do we audit it, sandbox the script, and decide whether run_skill_script may execute?",
+      "expected_behavior": "应激活本 skill：固定来源与版本、审阅全部内容、远程 archive 脚本默认禁用；确需执行时内化到隔离 runner，限制资源与参数并保留审批审计。",
+      "notes": "英文精确 trigger：audit third-party skill / sandbox skill scripts。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "多租户 Agent 会动态发现 Skill，但默认缓存永不过期，所有租户还共享同一个缓存桶。上线前应该补哪些治理和压力测试？",
+      "expected_behavior": "应激活本 skill，要求 tenant isolation key、refresh interval、来源与内容审计，并测试缓存串租户、权限陈旧和 fail-closed。",
+      "notes": "绑定 ce07 的生产治理场景。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "销售助手的聊天账本、跨轮草稿、每轮租户政策和实时库存，分别该放 Session、History Provider、Context Provider 还是 Tool？",
+      "expected_behavior": "不应激活本 skill；应激活 separate-session-history-context-and-tools。",
+      "notes": "跨 skill 混淆诱饵：兄弟 Skill v03，主题是会话与上下文归属，不是 Skill 包治理。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "财务 Agent 要循环查询 30 个台账后聚合，还能付款和发邮件。哪些调用放 CodeAct，哪些保留 direct tools 才能逐项审批？",
+      "expected_behavior": "不应激活本 skill；应转 choose-codeact-or-direct-tools-by-risk，因为问题是调用密度与逐操作审批可见性，不是 Skill 自带脚本治理。",
+      "notes": "脚本/代码关键词诱饵。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "这是我们内部维护的只读报表 Skill，load 和 read 都想自动批准；其中还有一个只读查询脚本。既然四级披露逐层加载，run 是否也可以自动继承批准？",
+      "expected_behavior": "应调用本 skill 并明确拒绝自动继承：四级披露是装载顺序，不是权限升级链。可在验证来源、内容和操作只读性后对 load/read 做窄豁免；run 仍需单独威胁建模、隔离、参数白名单与审批策略，不能因已 load/read 就获批。",
+      "notes": "边界测试专门防止夸大四级披露为自动权限升级。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "至少 3 条 should_trigger、2 条 should_not_trigger、1 条 edge_case；全部诱饵必须通过，且 should-not-trigger-01 为兄弟 Skill 混淆测试。"
+}
