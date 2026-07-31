@@ -1,0 +1,73 @@
+{
+  "skill": "govern-agent-state-lifecycles",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft Learn 文档集（2026 固定副本）",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "多租户报表服务把含聚合器、RAG Provider 和子 Workflow 的图注册成 singleton。第二次请求偶尔读到前一个租户的计数和 thread。请设计 fresh/reset 策略与隔离测试。",
+      "expected_behavior": "应激活 govern-agent-state-lifecycles，盘点所有可变状态，默认每任务 fresh Workflow/Executor/Agent/Session；仅对有证据必须复用的 Executor 做完整 Reset，并验证外部缓存/Provider 无串租户。",
+      "notes": "典型共享实例、跨 run 与跨 tenant 污染。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "Our resume API accepts a browser-supplied conversation ID and serialized session. Define a server-side handle envelope and restore gate that verifies owner, tenant, agent/provider config fingerprint, schema version, provenance, integrity, and TTL.",
+      "expected_behavior": "应激活 govern-agent-state-lifecycles，禁止客户端内容作为权威状态，设计 opaque handle 映射、私有完整性保护存储和逐项 fail-closed restore gate。",
+      "notes": "英文精确触发，完整覆盖 tenant/owner/config/integrity。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "团队把 reset 和 restore 混着说：新用户请求会 deserialize 旧 Session，而断点恢复前又调用 ResetAsync。请给出 fresh、reset、restore 的不变量和测试矩阵。",
+      "expected_behavior": "应激活 govern-agent-state-lifecycles，明确 fresh/reset 都用于下一 run 不继承旧状态，restore 用于恢复同一 run；分别建立隔离、清空和连续性测试。",
+      "notes": "正面场景直接检验三种生命周期方向。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "销售助手需要跨轮草稿、聊天消息账本、每轮必看的租户政策和仅相关时查询的实时库存。分别应该放 Session、History、Context Provider 还是 Tool？",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill separate-session-history-context-and-tools，先做责任与触发机制分层。",
+      "notes": "跨 skill 混淆诱饵：问题是状态/上下文放哪里，不是生命周期与恢复治理。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "跨两周理赔会遇到进程重启和 worker 迁移。标准 Workflow checkpoint 能不能撑住，还是必须上 Durable Task？",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill choose-workflow-recovery-layer 按故障域选层。本 skill 只能作为后续 owner/integrity/config gate 的补充。",
+      "notes": "兄弟诱饵：恢复基础设施选型，不是状态归属与生命周期。"
+    },
+    {
+      "id": "should-not-trigger-03",
+      "type": "should_not_trigger",
+      "prompt": "审批请求要保存 Pending，恢复后重发；24 小时超时升级，升级后拒绝旧审批人的迟到响应。请设计 request/response 状态机。",
+      "expected_behavior": "不应激活本 skill 作为主方法；应激活兄弟 skill model-recoverable-human-decisions。本 skill 只在需要审计承载该请求的 Session/Checkpoint owner 与完整性时组合使用。",
+      "notes": "兄弟诱饵：核心是 HITL 请求生命周期。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "Executor 构造很贵，但它声称自己无状态；底层 client 有连接池和 tenant-aware cache。能否作为 singleton 共享而不实现 Reset？",
+      "expected_behavior": "应调用本 skill 做状态审计。只有连接池线程安全、cache 以 tenant/config 正确隔离且 Executor/Provider 不保存 run/session 状态时才可共享无 Reset；若 cache 或回调持有可变租户状态，则 fresh、分区或完整 Reset，不能只信‘无状态’声明。",
+      "notes": "边界：可共享依赖与隐式外部可变状态的区分。"
+    },
+    {
+      "id": "edge-02",
+      "type": "edge_case",
+      "prompt": "同一用户想复制昨天的会话作为今天的新任务模板。应该 restore 原 Session、fresh 后导入摘要，还是 reset 原 Workflow？",
+      "expected_behavior": "应激活本 skill 并区分语义：今天是新 run，不能 restore 原运行或 reset 后继续用旧对象；应 fresh 新 Workflow/Agent/Session，只导入经过白名单和重新授权的业务输入/摘要，并保留显式 lineage，避免继承旧 pending 状态、工具结果和权限。",
+      "notes": "边界：有意复用内容不等于恢复同一 run。"
+    },
+    {
+      "id": "edge-03",
+      "type": "edge_case",
+      "prompt": "Session 由原 owner 提交，tenant 也正确，TTL 未过，但 Agent 的工具 schema 和 system instructions 已升级。可以直接 restore 吗？",
+      "expected_behavior": "应激活本 skill；owner/tenant/TTL 通过仍不足。必须比较 Agent/Provider/workflow 配置指纹与 schema，执行显式迁移并回归，或 fail closed。不得把旧状态直接注入不兼容配置。",
+      "notes": "边界：专门测试 config integrity/compatibility 与身份校验不可互代。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "9 条测试：3 条 should_trigger、3 条 should_not_trigger、3 条 edge_case；全部诱饵必须通过，包含分层、HITL、恢复层三个兄弟 skill 诱饵。"
+}
