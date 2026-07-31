@@ -1,0 +1,66 @@
+{
+  "skill": "model-recoverable-human-decisions",
+  "version": "0.1.0",
+  "source_book": "Microsoft Agent Framework — Microsoft Learn 文档集（2026 固定副本）",
+  "darwin_compatible": true,
+  "test_cases": [
+    {
+      "id": "should-trigger-01",
+      "type": "should_trigger",
+      "prompt": "诊断草稿必须由值班医生签核。周末会换班，审批页面可能重启，12 小时没回复要升级，还允许医生要求补检。请把它设计成可恢复的 HITL，不要只画一个弹窗。",
+      "expected_behavior": "应激活 model-recoverable-human-decisions，定义含病历/草稿版本与允许动作的强类型 request/response、Pending 状态、checkpoint/Durable 保存、身份与 tenant/病历权限复验、补检/超时/升级/迟到响应转换。",
+      "notes": "典型跨班次、跨 UI、带超时和多分支的人类决定状态机。"
+    },
+    {
+      "id": "should-trigger-02",
+      "type": "should_trigger",
+      "prompt": "Model our deployment approval as a typed asynchronous request/response flow. The workflow must survive UI disconnects, re-emit the same pending request after restore, deduplicate responses, and reject late approvals after escalation.",
+      "expected_behavior": "应激活 model-recoverable-human-decisions，使用稳定 request_id/correlation、持久 Pending、恢复重发去重、timeout/escalation 终态和迟到响应拒绝规则。",
+      "notes": "英文精确触发，覆盖 typed async、pending、restore/re-emit、late response。"
+    },
+    {
+      "id": "should-trigger-03",
+      "type": "should_trigger",
+      "prompt": "生产发布的 ApprovalRequiredAIFunction 已经能暂停了，但我们没有 pending 表。服务重启后不知道该等谁，重复点击批准会发两次，超时后旧链接仍可用。请补全设计。",
+      "expected_behavior": "应激活 model-recoverable-human-decisions，把框架暂停提升为完整状态机：强类型契约、服务端 pending、恢复点、响应幂等、当前身份/权限/对象版本校验、超时与旧链接终止。",
+      "notes": "已有 tool approval 但缺生产耐久语义的正面场景。"
+    },
+    {
+      "id": "should-not-trigger-01",
+      "type": "should_not_trigger",
+      "prompt": "我们有读取库存、批量导出工资、发送邮件和扣款四个工具。请按副作用、数据敏感度、可逆性和影响范围判断哪些要逐次审批，哪些可以放进 CodeAct。",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill choose-codeact-or-direct-tools-by-risk，先决定审批强度与 CodeAct/direct tools 边界。",
+      "notes": "跨 skill 混淆诱饵：问题是哪些操作要审批，不是审批等待状态机。"
+    },
+    {
+      "id": "should-not-trigger-02",
+      "type": "should_not_trigger",
+      "prompt": "保险理赔要跑两周，worker 会扩缩容。我们已有 Workflow checkpoint，但不确定是否要上 Durable Task。帮我按故障域选恢复层。",
+      "expected_behavior": "不应激活本 skill；应激活兄弟 skill choose-workflow-recovery-layer。只有选定恢复层后，才可能组合本 skill 设计其中的人工等待契约。",
+      "notes": "兄弟诱饵：核心是 checkpoint 与 Durable 的故障域选型。"
+    },
+    {
+      "id": "should-not-trigger-03",
+      "type": "should_not_trigger",
+      "prompt": "桌面工具删除一个临时预览文件前弹系统确认框；用户离线或窗口关闭就直接取消，不需要恢复，也没有后续副作用。",
+      "expected_behavior": "不应激活本 skill；普通同步确认足够，断线安全取消且无跨运行连续性需求。",
+      "notes": "诱饵：表面有人类确认，但没有异步耐久等待。"
+    },
+    {
+      "id": "edge-01",
+      "type": "edge_case",
+      "prompt": "采购单审批通常 30 秒内完成，但偶尔审批人会关掉页面；我们允许用户重新发起。到底要不要做 pending checkpoint？",
+      "expected_behavior": "应先判断重新发起是否会复制业务请求、副作用或丢失责任链。若从头重做完全安全、无外部效果且审计不要求连续性，可不用本 skill；若同一采购单必须保持审批身份、版本和唯一性，则应激活并持久化 Pending。",
+      "notes": "边界：等待时间短不等于不需要耐久性，关键是连续性与重试语义。"
+    },
+    {
+      "id": "edge-02",
+      "type": "edge_case",
+      "prompt": "审批在 10:00:00 超时并升级；原审批人的 approve 也在同一秒到达。系统应该两个都接受，然后让下游自己判断吗？",
+      "expected_behavior": "应激活本 skill，并拒绝双接受；必须用持久状态转换或并发控制确定唯一胜者。若 timeout 先提交，原响应成为迟到响应并拒绝；若合法 response 先提交，则取消 timeout/升级。",
+      "notes": "边界：测试超时与响应竞态、终态不可复活。"
+    }
+  ],
+  "minimum_pass_rate": 0.8,
+  "notes": "8 条测试：3 条 should_trigger、3 条 should_not_trigger、2 条 edge_case；全部诱饵必须通过，且包含 risk-selection 与 recovery-layer 两类兄弟 skill 混淆测试。"
+}
