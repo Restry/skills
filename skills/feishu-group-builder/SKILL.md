@@ -34,6 +34,60 @@ TENANT_SUBDOMAIN=<yourtenant>   # 例:公司叫 acme,填 acme,链接是 acme.fei
 
 ---
 
+## Step 0 · 源材料确认(必读,先做)
+
+用户说"根据 X 文档建群"时,X **必须真实存在且可读**才进 Step 1。飞书通知一发即不可撤;凭空建群 + 后续再填内容 = 二次打扰。找源、判歧义、拿不到就问 —— **绝不脑补**。
+
+### 0.1 三处并搜找源
+
+```bash
+# a. 飞书云文档全库搜(user 身份)
+lark-cli drive +search --query "<关键词>" --page-size 20 --as user --format json 2>&1 \
+  | python3 -c "import json,sys; raw=sys.stdin.read(); d=json.loads(raw[raw.find('{'):])
+for r in d.get('data',{}).get('results',[]):
+    print(r['result_meta']['doc_types'], r['result_meta']['token'], r['title_highlighted'])"
+
+# b. wiki 空间树扫父节点(用 +node-list,不是 +space-node-list——后者是错命令)
+lark-cli wiki +node-list --space-id "$WIKI_SPACE_ID" --page-size 50 --as user
+
+# c. 会话历史 — 用户可能之前粘过 URL/token,session_search(query="<项目名>")
+```
+
+⚠️ **flag 陷阱** — `lark-cli drive` 搜索用 `+search --query "..."`,**不是** `+files-list`(不存在),**不是** `--params '{"search_key":...}'`(unknown_flag)。
+
+### 0.2 命中空文档 = 等同没材料
+
+`drive +search` 找到一个同名 wiki 但 fetch 出来 body 只有 `# 标题` → 用户刚占了个坑位准备后续填。**等同于没材料**,不能拿它当\"源\"。
+
+### 0.3 名字碰撞歧义(portfolio 里必查)
+
+新项目名跟已有项目**同音/近似** → 建错群/挂错文档不可撤。判定:
+
+```bash
+# 已知项目清单里查
+grep -i "<近似关键词>" ~/.hermes/feishu-groups.json
+# 过往会话查
+# session_search(query="<项目名>", limit=5)
+```
+
+任一命中 → clarify 一次问用户是哪个。例:"Park Horizon"(新)vs "PackHorizon"(旧 SaaS `ph`)—— SLD 差 1 字母,web 搜出来完全不同域也可能撞车。
+
+### 0.4 找不到就问一次,不再追
+
+3 处都空 + 名字无歧义 + 用户在场 → **单次 clarify**,给三选一:
+
+1. 把文档 PDF/截图/URL 发到当前 DM
+2. 告诉我 wiki token / 别的可访问路径
+3. 口述关键信息我起草你审
+
+**10 分钟没回响不追第二次** —— 输出简短待机说明("已就位,缺 X 材料,回来告诉我 3 选 1"),停手等。
+
+用户不在场(cron/派工场景)→ 直接退出报"缺源材料",禁建群。
+
+**铁律 — 绝不用 web 公开信息 / 旧 session 讨论碎片脑补源材料**(股权条款、项目定位、合作方名单等)来建群 = 编造。
+
+---
+
 ## 完整 7 步
 
 ### Step 1 · 生 emoji 头像(0.5 秒)
@@ -62,7 +116,41 @@ cd /tmp/avatars && lark-cli im images create --as bot \
 
 ### Step 3 · 建 wiki 文档并挂到 wiki 树下(可选)
 
-如果这个群要挂一份 wiki 文档,先建文档(2 步:先 Drive 建 docx,再 move 到 wiki):
+**两种姿势,按内容准备程度选**:
+
+#### 3A · 一步建空 wiki docx,后续用 `docs +update append` 填内容(**推荐**)
+
+内容还在整理 / 想分段追加 / 想让文档 native 挂在 wiki 树里 → 用这个:
+
+```bash
+lark-cli wiki nodes create \
+  --params "{\"space_id\":\"$WIKI_SPACE_ID\"}" \
+  --data "{\"parent_node_token\":\"$WIKI_PARENT_NODE_TOKEN\",\"node_type\":\"origin\",\"obj_type\":\"docx\",\"title\":\"<emoji> <标题>\"}" \
+  --as user --format json 2>&1 > /tmp/.wiki-create.json
+
+# 一次拿齐 3 个 token
+python3 <<'PY' > /tmp/.<slug>-tokens.env
+import json
+d = json.load(open('/tmp/.wiki-create.json'))
+node = d['data']['node']
+print(f"WIKI_TOKEN={node['node_token']}")     # wiki URL 用它
+print(f"OBJ_TOKEN={node['obj_token']}")       # docs +update 用它
+print(f"WIKI_URL=https://<TENANT>.feishu.cn/wiki/{node['node_token']}")
+PY
+source /tmp/.<slug>-tokens.env
+
+# 然后 append markdown(注意:必须相对路径,见 Pitfall #3)
+cd /tmp && lark-cli docs +update \
+  --doc "$OBJ_TOKEN" --command append --doc-format markdown \
+  --content @./<slug>-wiki.md \
+  --as user --format json
+```
+
+优点:一次 API 调用建成 wiki 节点,不用后续 `+move`,`node_token` 和 `obj_token` 同一响应拿齐。追加式写文档也天然支持 rev 增量。
+
+#### 3B · 已有完整 markdown → Drive `+create` + `wiki +move`(两步)
+
+一次性把完整 markdown 塞进新 Drive doc 再挂 wiki:
 
 ```bash
 # a. 建 Drive doc
@@ -139,7 +227,18 @@ cat > /tmp/<slug>-card.json <<EOF
       {"tag": "hr"},
       {"tag": "markdown", "content": "**当前状态**\n- ✅ ...\n- 🟢 ..."},
       {"tag": "hr"},
-      {"tag": "markdown", "content": "**📚 文档**\n[<标题>](https://${TENANT_SUBDOMAIN}.feishu.cn/wiki/${WIKI_TOKEN})"}
+      {"tag": "markdown", "content": "**📚 文档**\\n[<标题>](https://${TENANT_SUBDOMAIN}.feishu.cn/wiki/${WIKI_TOKEN})"},
+      {"tag": "hr"},
+      {
+        "tag": "button",
+        "text": {"tag": "plain_text", "content": "📄 打开完整档案"},
+        "type": "primary_filled",
+        "width": "default",
+        "size": "medium",
+        "behaviors": [
+          {"type": "open_url", "default_url": "https://${TENANT_SUBDOMAIN}.feishu.cn/wiki/${WIKI_TOKEN}"}
+        ]
+      }
     ]
   }
 }
@@ -153,9 +252,10 @@ MSG_ID=$(python3 -c "
 import json; d=json.load(open('/tmp/.msg.json'))
 print(d['data']['message_id'])
 ")
+[ -n "$MSG_ID" ] || { echo "❌ message_id 没拿到，禁止继续 Pin"; exit 1; }
 ```
 
-⚠️ **铁律** — `--content "$(cat file.json)"` 内联,**绝不用 `--content @file`**(会被当字面字符串发)。
+⚠️ **铁律** — `--content "$(cat file.json)"` 内联,**绝不用 `--content @file`**(会被当字面字符串发)。多步脚本必须启用 `set -e`，或把发送与 Pin 放进同一段 Python 控制流；发送脚本出现 SyntaxError/API error 后不得继续用空 `MSG_ID` 调 Pin。
 
 ### Step 6 · Pin 卡片
 
@@ -163,6 +263,12 @@ print(d['data']['message_id'])
 lark-cli im pins create --as bot \
   --data "{\"message_id\":\"$MSG_ID\"}"
 ```
+
+⚠️ **子命令名易记错** — pin 是 **`im pins create`**（`pins` 是资源，`create` 是动作）。**不是**：
+- ❌ `im +messages-pin` — 报 `unknown subcommand`（`+messages-pin` 根本不存在）
+- ❌ `im messages pin` — 也不存在
+
+规律：lark-cli 里 "对某消息做资源类操作"（pin / react / flag）都走 **`im <resource>s create`** 而不是消息子命令。
 
 ### Step 7 · 打 feed-group 标签(可选)
 
@@ -194,7 +300,9 @@ lark-cli im pins list --as bot --params "{\"chat_id\":\"$CHAT_ID\"}"
 
 **姿势**:`--format json` + 立刻 python 解析 CHAT_ID + 落文件(参见 Step 4 模板)。
 
-### 2. lark-cli 列表 API 的 key **不统一**,凭印象写 `data.items` 会**静默返回空**
+### 2. lark-cli 列表 API 的 key **不统一**，凭印象写 `data.items` 会**静默返回空**；写请求 body 也一样
+
+**返回 key 表**：
 
 | 命令 | 列表 key |
 |---|---|
@@ -202,14 +310,36 @@ lark-cli im pins list --as bot --params "{\"chat_id\":\"$CHAT_ID\"}"
 | `im +chat-search` | `data.items` |
 | `wiki +node-list` | `data.nodes`(且 stdout 第一行是 `Found N node(s)` banner,要 `raw[raw.find('{'):]` 去掉) |
 | `im +messages-search` | `data.messages` |
+| `drive +search` | `data.results`(**参数用 `--query "X"`,不是 `--params '{...}'`**;子命令是 `+search`,**不是 `+files-list`**——后者不存在) |
 
 **防御**:先 `print(list(d.get('data',{}).keys()))` 看 key 名再取。
 
-### 3. lark-cli `--file` / `--data @file` 不支持绝对路径
+**同款陷阱在请求 body**：不同命令的 items 数组字段名也不统一，凭印象拼会拿到 `error_code + error_message` 但 **HTTP code=0 假成功**：
+
+| 命令 | items 元素 key |
+|---|---|
+| `im feed.groups batch_add_item` | **`feed_id` / `feed_type`**（❌ 不是 `item_id`/`item_type`——前者会返 `230006 only feed_type=chat is supported, got feed_type=''`） |
+| `im chat.members create` | **`id_list`**（`open_id` 数组，不是 `members`/`users`） |
+| `im pins create` | **`message_id`** 单值（不是 items 数组） |
+
+**防御**：写 body 前先 `lark-cli schema <resource>.<method>` 查真实 schema，或者提交后**必看 `data.failed_items` / `data.invalid_*`**（HTTP code=0 但 failed_items 非空 = 部分失败，别信 `success` 二字）。
+
+### 3. lark-cli `--file` / `--data @file` / `--content @file` 都不支持绝对路径
+
+任何 `@file` / `--file` 形态的入参 CLI 都强制要求相对路径 + 在 cwd 内:
 
 ```
 ❌ --file image=/Users/x/pics/avatar.png
+❌ --content @/tmp/wiki.md         # docs +update 同样中招
 ✅ cd /tmp && cp ~/pics/avatar.png . && --file image=avatar.png
+✅ cd /tmp && --content @./wiki.md
+```
+
+报错原文(踩到就是这句):
+```
+--content: invalid file path "/tmp/wiki.md":
+--file must be a relative path within the current directory,
+got "/tmp/wiki.md" (hint: cd to the target directory first, or use a relative path like ./filename)
 ```
 
 ### 4. images create 的 `image_type` 必须 `avatar` 而非 `message`
@@ -281,7 +411,39 @@ lark-cli wiki +node-delete --node-token "<wiki URL>" --as user --yes
 
 已存在的群名/描述 ≠ ground truth,可能是上次建群时的错联想或过期快照。**改之前先读**项目的 README / 最近 git commit / UI 上真实显示的字符串(placeholder / `<title>` / metadata),三处对齐再动手。groups description 里**优先放"是什么" + 仓库源 + 本地路径**,不放"进度状态"(状态会过时)。
 
-### 12. 建群前先 dedup 查重(避免二次创建)
+### 12. Schema 2.0 卡片里 `{"tag":"action","actions":[...]}` 已废弃 → 用**裸 button 元素**
+
+想在首条卡片放个"查看 wiki"按钮时最容易踩。schema **2.0** 拒收 v1 的 action 包装,报:
+
+```
+code 230099 / ext ErrCode: 200861
+ErrMsg: cards of schema V2 no longer support this capability;
+ErrorValue: unsupported tag action
+```
+
+**修法** — button 作为 body element 直接摆,`behaviors` 数组承载点击动作:
+
+```json
+{
+  "tag": "button",
+  "text": {"tag": "plain_text", "content": "📄 查看完整档案 wiki"},
+  "type": "primary_filled",
+  "width": "default",
+  "size": "medium",
+  "behaviors": [
+    {"type": "open_url", "default_url": "https://<tenant>.feishu.cn/wiki/<token>"}
+  ]
+}
+```
+
+关键字段:
+- `type` — `primary_filled` / `default_filled` / `default` / `text`(v2 命名,不是 v1 的 `primary`/`danger`)
+- `width` — `default` / `fill`(fill 铺满一行)
+- `behaviors[].type` — `open_url` / `callback` / `form_action`
+
+多按钮 → 用 `column_set` 布局把多个 button 元素横排,不再包 action。
+
+### 13. 建群前先 dedup 查重(避免二次创建)
 
 ```bash
 # 查 feed-group 里有没有同名群
@@ -303,6 +465,92 @@ lark-cli wiki +node-list --space-id "$WIKI_SPACE_ID" \
 ```
 
 两处都空命中 → 安全建。任一命中 → 复用已有 chat_id / node_token,不要重复建。
+
+### 14. `wiki +node-get` 双坑 + `+space-node-list` 是幻觉子命令
+
+跟 pitfall #9 同源。**wiki node-* 命令对 raw token 都不友好,优先 URL 形式**:
+
+```bash
+# ❌ 两个错一起出
+lark-cli wiki +node-get --token XXX --as user
+# → Flag --token has been deprecated, use --node-token instead
+# → --obj-type is required for a raw obj_token "XXX"
+#   (one of: doc, docx, sheet, bitable, mindnote, slides, file)
+
+# ✅ URL 形式,CLI 自动 infer obj_type
+lark-cli wiki +node-get --node-token "https://<tenant>.feishu.cn/wiki/XXX" --as user
+
+# ✅ raw token + 显式 --obj-type
+lark-cli wiki +node-get --node-token XXX --obj-type docx --as user
+```
+
+顺带 —— `wiki +space-node-list` **不存在**,报 `unknown subcommand`。列节点用 `+node-list --space-id X`(可选 `--parent-node-token X` 限定子树)。
+
+### 16. Shell `--data "$(python3 -c "...")"` 引号地狱 → 用 python heredoc + subprocess
+
+生成 interactive card 或复杂 body 时高发。外层 `"..."` 会 kill 掉 inner python 的 `"..."`,inner 又需要 `""` 包 JSON string:
+
+```bash
+# ❌ 崩(SyntaxError 或 shell 把 ' 当变量分隔)
+lark-cli im messages create \
+  --data "$(python3 -c "
+import json
+print(json.dumps({
+    'receive_id': '${CHAT}',
+    'msg_type': 'interactive',
+    'content': json.dumps(card, ensure_ascii=False)
+}, ensure_ascii=False))"
+```
+
+**修法** — python heredoc `<<'PY'`(**单引号** heredoc 阻止 shell 变量插值 + `\` 转义)+ `subprocess.run(list)`:
+
+```python
+python3 <<'PY'
+import json, subprocess
+CHAT = "oc_xxx"       # 硬编码进 heredoc,别 $VAR
+card = { ... }        # 完整 dict
+
+# 落 JSON 文件比 --data 内联稳
+with open('/tmp/card.json','w') as f:
+    json.dump(card, f, ensure_ascii=False)
+
+# lark-cli +messages-send 内联读文件(不用 --data JSON)
+r = subprocess.run(
+    ["bash","-c",
+     f'lark-cli im +messages-send --chat-id {CHAT} --msg-type interactive '
+     f'--content "$(cat /tmp/card.json)" --as bot --format json'],
+    capture_output=True, text=True
+)
+out = r.stdout or r.stderr
+d = json.loads(out[out.find('{'):])
+print("msg_id=" + d.get('data',{}).get('message_id','ERR'))
+PY
+```
+
+**关键规避**:
+- heredoc 用 `<<'PY'`(单引号)—— shell 不做变量/命令替换
+- 变量硬编码进 heredoc,不用 `${VAR}` 传进去
+- **`subprocess.run(list形式)`** 而非 `subprocess.run("string", shell=True)` — 前者 argv 数组直传,后者又回到 shell 引号地狱
+- JSON body 复杂时**先落文件再用 `$(cat file)`** 比 `--data '{...}'` 内联稳
+
+同款问题也发生在 `chats create --data '{...含中文..}'` 时。凡是 body 含引号/中文/嵌套 JSON 都走 heredoc,别硬 inline。
+
+### 15. 合同/契约类源材料里签名页/主体信息**空白** = 不能自动填人拉群
+
+Step 0 铁律的补充。合同草案里"甲方 A / 乙方 B / 丙方 C · 身份证:____"这种**明摆着还没落名的**字段,即使会话历史里能推测出角色分配,也**禁止**:
+
+- 用推测名字填 wiki 里的"三方结构"表(会变成看似确定的记录)
+- 把推测的三方拉进群(飞书通知即不可撤,拉错人 = 事故)
+- 用旧 session 讨论碎片当"事实"填合同条款(编造)
+
+**姿势** — 只按合同白纸黑字有的信息建档:
+
+1. **wiki 里角色行保留 A/B/C 占位符**,不换成猜的名字
+2. **群成员只邀请 Owner**(你自己),外部三方缺席
+3. 单开一节 `## 待补` 列出所有空白字段(签名/身份证/公司名/日期/联系方式),下次用户来 confirm 才动
+4. 首卡片 `**⏳ 待补**` 区块显示相同清单,视觉提示"这不是完整合同"
+
+**判定** — 源材料里出现连续 3+ 个 `____` / `<空>` / `TBD` / `___` 且字段位置在\"主体/签名/联系方式\" → 走本条,不走"直接建三方群"路径。
 
 ---
 
