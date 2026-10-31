@@ -105,7 +105,7 @@ def main():
     print("业务方 .env 加：")
     print(f"   WX_GATEWAY_BASE={args.gateway}")
     print(f"   WX_GATEWAY_APP_NAME={args.name}")
-    print(f"   WX_GATEWAY_SECRET={secret}")
+    print("   WX_GATEWAY_SECRET：从上述受保护文件读取，禁止复制到日志")
     print()
     print("⚠️  网关 apps cache TTL 60s — 业务方扫码若秒级失败可等 1 分钟再试")
 

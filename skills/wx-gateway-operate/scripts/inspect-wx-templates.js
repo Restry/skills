@@ -1,20 +1,6 @@
-// Inspect what WeChat templates the current 公众号 has, what subscribe-notification
-// categories are open, what industry it's assigned to, plus per-app enabled state
-// in the gateway's WxTemplate / App tables.
-//
-// Run INSIDE a wx-gateway* project dir (require('@prisma/client') resolves by
-// script location, not cwd — see references/wechat-template-inventory.md pitfall 1).
-//
-//   cd /opt/mvp-apps/wx-gateway-pucs && node scripts/inspect-wx-templates.js
-//
-// Or via mvp-deployer /api/exec (the common case for ad-hoc inspection):
-//
-//   B64=$(base64 -i scripts/inspect-wx-templates.js | tr -d '\n')
-//   jq -nc --arg cmd "cd /opt/mvp-apps/wx-gateway-pucs && echo $B64 | base64 -d > ./_q.js && node ./_q.js; rm -f ./_q.js" '{command: $cmd}' > /tmp/pl.json
-//   curl -sS --http1.1 -K /tmp/curlcfg
-//
-// See references/wechat-template-inventory.md for the full driver including the
-// curl-config-file pattern that avoids the MVP_DEPLOYER__TOKEN= scrubber mangling.
+// Run from an authorized gateway project with its existing environment.
+// See references/troubleshooting.md and references/deployment.md.
+// Do not start the stopped pucs instance or print credentials.
 
 const { PrismaClient } = require('@prisma/client');
 
@@ -22,7 +8,7 @@ const { PrismaClient } = require('@prisma/client');
   const p = new PrismaClient();
   const cache = await p.wxAccessTokenCache.findFirst({ orderBy: { expiresAt: 'desc' } });
   if (!cache || cache.expiresAt < new Date()) {
-    console.error(JSON.stringify({ error: 'no_valid_token', cache }));
+    console.error(JSON.stringify({ error: 'no_valid_token', cachePresent: Boolean(cache) }));
     process.exit(1);
   }
   const token = cache.accessToken;

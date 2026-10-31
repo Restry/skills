@@ -196,7 +196,7 @@ def parse_max_age(setcookie: str) -> int:
 def main():
     print(f"== wx-gateway selftest ==")
     print(f"GATEWAY            = {GATEWAY}")
-    print(f"ADMIN_PUBLIC_PATH  = {ADMIN_PUBLIC_PATH}")
+    print("ADMIN_PUBLIC_PATH  = [configured]")
     print(f"PROJECT            = {PROJECT}")
     print()
 
@@ -1793,25 +1793,7 @@ def cron_cases():
     except Exception as e:
         log(False, "T-CRON-1: pm2 log probe failed", repr(e))
 
-    # Cleanup stale fail rows (>1h old) so redeliver tick isn't starved by
-    # ancient retries. Reported, not asserted.
-    try:
-        cleanup_cmd = (
-            "node -e 'const{PrismaClient}=require(\"@prisma/client\");"
-            "const p=new PrismaClient();"
-            "(async()=>{const r=await p.paymentWebhookDelivery.deleteMany("
-            "{where:{status:\"fail\",createdAt:{lt:new Date(Date.now()-3600000)}}});"
-            "process.stdout.write(String(r.count));await p.$disconnect();})()"
-            ".catch(e=>{process.stderr.write(String(e));process.exit(1)})'"
-        )
-        out2 = deployer_exec(cleanup_cmd, timeout_ms=20000)
-        if out2.get("exitCode") == 0:
-            n = int((out2.get("stdout") or "0").strip() or "0")
-            print(f"   [cleanup] deleted {n} stale status=fail webhook rows older than 1h")
-        else:
-            print(f"   [cleanup] skipped: exit={out2.get('exitCode')} stderr={(out2.get('stderr') or '')[:200]}")
-    except Exception as e:
-        print(f"   [cleanup] skipped: {e!r}")
+    # Business webhook retry records are never deleted by selftest.
 
 
 def _internal_sig(secret: str, payload: str, ts: str, app_name: str) -> str:
@@ -1837,6 +1819,7 @@ def internal_token_cases():
     except Exception as e:
         log(False, "T-INTERNAL-TOKEN-1: fetch selftest secret", repr(e))
         return
+
 
     # 1) happy path
     ts_ok = str(int(time.time() * 1000))
@@ -2128,22 +2111,8 @@ def push_cases(auth_headers: dict):
     log(s3 == 403 and b3.get("error") == "app_not_found",
         "T-PUSH-3: unknown appName → 403 app_not_found", f"got={s3}/{b3}")
 
-    # T-PUSH-4: selftest pushing to unbound openid → 403 not_bound_to_app
-    ts = str(int(time.time() * 1000))
-    fake_openid = f"oSelftest_unbound_{secrets.token_hex(4)}"
-    s4, _, raw4 = http(
-        "POST", url,
-        headers={
-            "X-App-Name": "selftest",
-            "X-Internal-Auth": _internal_sig(app_secret, "wx-push", ts, "selftest"),
-            "X-Ts": ts,
-        },
-        body={"toUser": fake_openid, "type": "custom", "payload": {"text": {"content": "hi"}}},
-    )
-    b4 = json.loads(raw4) if raw4.startswith("{") else {}
-    log(s4 == 403 and b4.get("error") == "not_bound_to_app",
-        "T-PUSH-4: openid not bound to selftest → 403 not_bound_to_app", f"got={s4}/{b4}")
-
+    # Binding is not a wx-push authorization gate; do not send synthetic
+    # messages to nonexistent users to test a retired permission rule.
     # T-PUSH-5/6 need admin-app secret to sign as admin. Fetch via control endpoint
     # (admin_secret is gateway's ADMIN_SESSION_SECRET, which lets us read DB).
     admin_app_secret = _fetch_admin_app_secret()
