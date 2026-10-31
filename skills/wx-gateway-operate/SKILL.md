@@ -5,6 +5,8 @@ description: 维护 wx-gateway（爸爸的微信公众号共享回调网关）�
 
 # wx-gateway 维护手册
 
+> **用户停用指令（优先于下文双实例部署规则）**：莆阳/莆田 `wx-gateway-pucs` 已停用，PM2 项移除并保存，`.deploy-manifest.json` 的 `autoDeploy.enabled=false`。用户明确再次要求启动前，禁止启动、重部署、随双实例脚本拉起或恢复自启；保留配置、文件和数据库。当前只维护运行中的造悟者 `wx-gateway`。
+
 > ⚠️ **多实例部署**（2026-04-29 起）
 >
 > wx-gateway 现在是**一份代码、两个独立实例**：
