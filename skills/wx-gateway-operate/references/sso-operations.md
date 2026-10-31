@@ -1,15 +1,51 @@
 # SSO 发布与验收
 
-实现提交 `fac499adfb5784e2ad32f1153330e6c2f7def852` 已推送 main，并部署两套生产实例。发布任务均 succeeded/done，生产回读两库存在 SsoSession，App/WxLoginToken 数量保持发布前值（造悟者 12/255739，莆阳 9/34648）。跨站真实微信扫码和业务方本地会话验收仍待客户端改造，不能据发布成功宣称已互通。协议权威源为仓库 docs/SSO.md；后续仍须核实目标实时状态。
+## 先锁定体验与协议
 
-两实例分别配置 `SSO_ISSUER` 为各自 HTTPS origin（无末尾 /），`SSO_SESSION_KEY` 为独立随机 32 bytes、64 hex，保存在门神并经保护机制注入。禁止复用测试零密钥或在日志显示。缺配置时 SSO 503；旧 QR/pay/internal 保持原功能。
+保留接入方原登录页、二维码组件和备用入口。协议权威源为仓库 `docs/SSO.md`；先核对实际已部署版本与已启用实例，不从历史发布记录推断现状。各 issuer 使用独立密钥，同浏览器同 issuer 才能复用会话。七天从首次登录起绝对到期，访问其他站不得续期。
 
-发布前备份并核对运行用户、数据库、旧记录数、迁移历史和可恢复制品。增量迁移 `20261031000000_gateway_sso` 新增 App.ssoRedirectUri、SsoSession/SsoTransaction/SsoCode；`20261031000001_native_login_prerequisites` 幂等补齐原生 App 相关列。审阅实际 SQL；只用 prisma migrate deploy，禁止 db push --accept-data-loss/reset。若现网 schema/迁移历史异常，先只读核实，禁止重建数据表。部署包包含 lockfile 和 pnpm-workspace.yaml。
+1. 本站无会话时发起带 state、PKCE 的静默授权；中央有有效会话直接返回授权码。
+2. 中央无会话时，校验返回的 state、issuer 和浏览器事务，回本站原二维码组件；明确停住自动授权，防止循环。
+3. 将本站二维码 token 与当前浏览器事务绑定。扫码确认后，由后台 HMAC 调用中央完成接口；中央校验 active app、精确回调、state、PKCE、真实 confirmed 微信 token、期限和单次消费。
+4. 用自动顶层 resume 在原桌面浏览器设置中央 Cookie，再返回本站建立会话；不得把 Cookie 只设在手机回调，也不得依赖第三方 Cookie 或 iframe。内部往返不渲染中央扫码、确认或检查页面。
+5. 中央兑换返回绑定 app、session 和绝对期限的撤销 capability；只存服务器会话或加密 HttpOnly Cookie，不暴露在 session JSON、页面或日志。
 
-先冻结安装、generate、build，再按既有平台顺序执行安全迁移和重启，两个实例均需发布。保留原 .env 和权限，校验部署版本、进程及新路由，不用 CLI 外层 exit 0 替代远程结果。
+## 直接退出与旧会话
 
-会话为首次扫码起七天绝对有效，访问 A/B 不续期；Cookie 由原桌面浏览器 complete 响应设置，不能只在微信手机回调设置。只支持同 issuer；中央退出不自动删除网站本地会话。
+从本站原退出按钮发起受 Origin/CSRF 保护的操作。本站后台 HMAC 调用 `/sso/revoke`，仅撤销 capability 指向的中央 session，再清本站 session、Cookie 和登录事务。并发、重复点击应幂等；网关后台同源退出也直接完成。残留中央 Cookie 必须因已撤销而无法恢复本站登录。
 
-现有 active App 需精确登记 ssoRedirectUri，不能覆盖 finalizePath/callbackUrl，当前无 UI。只登记已上线客户端真实回调；无授权不建生产测试 App/身份。接口和 HMAC 字符串约定见 docs/SSO.md 与 wx-gateway-integrate/references/sso.md。
+撤销失败时保留可重试绑定并显示明确失败，不静默成功。旧本站会话缺少安全撤销凭证时，先核实认证方式；不能从 openid 猜绑定或批量撤销。发布说明必须披露重新登录要求，不能声称旧会话退出已验证。统一退出必须使共享同一中央 session 的所有接入方本地会话失效；不能只撤销中央与当前网站而让另一站继续授权。各站每次受保护鉴权都由后端检查中央状态，确认失效后拒绝业务并清理本地会话；网关故障与已撤销分开处理，故障时拒绝业务但保留可重试凭证。不得按 openid 批量撤销其他浏览器的独立中央会话。
 
-验收：父控制器独立跑 PostgreSQL 行为测试、继承回归、tsc；真实浏览器证明 A 原生扫码确认→桌面 Cookie→B 无扫码→session expiry 不变→退出失效。模拟微信响应只算协议测试，不能报告生产扫码成功。缺生产授权登录或真实扫码时明确剩余边界。
+使用经应用 HMAC 鉴权、绑定 app/session/绝对期限的 `/sso/session-status` 查询；签名串以当前 `docs/SSO.md` 为准，已核实为 `sso-session-status|${token}|${ts}|${app}`。capability 仅存服务器或加密 HttpOnly Cookie，不进入浏览器可读 session JSON。两站受保护 API、页面、Server Action 与网关后台都要消费中央状态，不能只改前端显示。已开页面每15秒及 focus/visibility 检查；隐藏或冻结标签恢复时重检，不承诺冻结期间的墙钟上界。登录恢复须支持其他站新扫码后无感进入，不能以永久退出页阻断。
+
+旧缺来源或绑定凭证的会话需一次重新认证；不能永久绕过中央校验或卡在409退出死路。新密码/邮箱等明确本地会话保持独立。验收用两站同时打开，双向验证扫码→另一站无感→任一站退出→另一站受保护API立即拒绝且已开页更新→刷新仍退出→重新扫码恢复，并测独立中央session不误撤销。
+
+## 跨站表单停留与重复提交排查
+
+浏览器第一次提交后仍停旧页面、第二次报 CSRF 时，按以下顺序定位：
+
+1. 记录第一次 POST 状态、Location、Set-Cookie 和数据库 revokedAt，仅输出安全元数据。
+2. 查看浏览器 console 与实际导航；Chromium 的 CSP `form-action` 会检查表单重定向链，服务端 303 可能被浏览器阻断。
+3. 比较第二次提交的 Cookie 状态；第一次已清 Cookie 时，旧 CSRF 的绑定会失效，不能误判为第一次请求未到达。
+4. 旧确认协议仍在服务其他客户端时，仅对已通过精确注册返回白名单的 HTTPS 目标允许对应 `form-action`，不要放开通配域名或关闭 CSP。新客户端仍走本站后端直接退出。
+5. 用真实浏览器验证首击落地、重复提交和最终状态；curl 的 303 不能证明浏览器成功返回。
+
+## 发布顺序
+
+备份配置、数据库和可恢复制品，核对实际 SQL 与迁移历史。仅使用增量 `prisma migrate deploy`，禁止 reset 或 `db push --accept-data-loss`。包含 lockfile 及其 pnpm workspace 策略；从精确提交构建，不纳入其他未提交工作。
+
+先发布中央增量协议，再按客户端实际需求应用增量迁移、generate、build、激活。需要构建时公开变量的旧二维码组件必须在构建阶段注入对应网关 base/app name，不能只修改运行环境。检查 package build 是否含删除 env、seed 等副作用，使用已审阅的受控构建命令。仅发布明确获准且启用的实例，停用实例不随批次拉起。
+
+核对精确注册回调，不覆盖无关 finalizePath 或消息回调。后台身份复用仍须校验既有管理员角色、白名单及 blocked 状态，不按 email 自动提权。
+
+## 登录初始化与后台标签
+
+首次打开登录页的鉴权初始化必须执行并释放渲染 gate，不能因为 `document.visibilityState === "hidden"` 在 try/finally 外提前返回。可见性限制与 silent 冷却只约束后续活动重检，不能阻止首次事务创建。真实浏览器复测普通入口、后台标签、多标签与冷却场景；保留原二维码布局，不增加“正在确认登录状态”等提示。页面200或 readyState complete 仍可能正文为空，必须检查实际渲染和二维码。
+
+## 有限验收与报告
+
+先跑隔离 PostgreSQL 的相关协议与拒绝测试、继承回归及类型检查，再构建。浏览器通过真实页面覆盖：本站二维码 → 扫码成功 → 桌面中央 Cookie → 另一站免扫码 → 绝对期限不变 → 原按钮退出 → 本站和中央状态失效 → 刷新仍未登录 → 重新扫码成功；另测双击和一个关键拒绝路径。
+
+本地扫码替身须明确标识并阻断外部请求，页面跨工具调用后重新确认拦截仍有效；优先在单次调用内创建、使用并关闭隔离上下文。生产不写合成身份、测试 App 或 confirmed token 来冒充真实微信验收。
+
+发布后回读版本和实际服务进程，并检查原页面及真实业务路径。分别报告本地协议验证、线上界面验证、真实微信扫码验收；缺真实登录时明确保留边界，不从二维码已加载推导退出或跨站流程成功。

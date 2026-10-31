@@ -16,7 +16,7 @@ description: 维护 wx-gateway（爸爸的微信公众号共享回调网关）�
 > | **wx-gateway** | 造悟者 `wx225bf76b06064faa` | `wx.mvp.restry.cn` | `wx-gateway/*` | `wx_gateway` (owner=wx_gateway) | 3794 |
 > | **wx-gateway-pucs** | 莆阳网络科技 `wxe780b027c2c56921` | `wxmsg.mvp.restry.cn` | `wx-gateway-pucs/*` | `wx_gateway_pucs` (owner=image_studio) | 3800 |
 >
-> **改代码后两个实例都要 redeploy**。每实例独立的 env：DATABASE_URL / WX_APPID / WX_APP_SECRET / WX_TOKEN / WX_AES_KEY / PUBLIC_BASE_URL / ADMIN_PUBLIC_PATH / ADMIN_APP_BASE_URL / APPS_JSON / INSTANCE_LABEL / INSTANCE_ACCENT / INSTANCE_EMOJI。
+> **改代码后只部署用户授权且处于启用状态的实例**；先核对停用指令、PM2 持久化状态和自动部署配置，禁止批量脚本恢复被停用的实例。每实例独立的 env：DATABASE_URL / WX_APPID / WX_APP_SECRET / WX_TOKEN / WX_AES_KEY / PUBLIC_BASE_URL / ADMIN_PUBLIC_PATH / ADMIN_APP_BASE_URL / APPS_JSON / INSTANCE_LABEL / INSTANCE_ACCENT / INSTANCE_EMOJI。
 >
 > **品牌区分 env**（避免运维看花眼）：
 > - 造悟者：`INSTANCE_LABEL=造悟者` `INSTANCE_ACCENT=#3b82f6` `INSTANCE_EMOJI=🟦`
@@ -263,7 +263,12 @@ script = f'''const {{ PrismaClient }} = require('@prisma/client');
 - 备份 `node -e` 跑 source `.env` 时 .env 含中文未引号值会报 `command not found`（dotenv 自己 parse 不影响），但 deployer 写 .env 不加引号是已知小坑
 
 ### 删 app
-admin Dashboard `Apps` tab → revoke。**不要** `DELETE` Prisma 行（会丢历史 ScanLog 关联）。**永远不要 revoke `selftest` 或 `admin`**（`instrumentation.ts` 启动 hook 会回滚 admin，selftest 反而需要手 fix）。
+
+用户要求“从网关删除某应用”时，由 Hermes 直接处理网关接入配置；不派编码代理，不扩大到业务网站部署、源码、数据库或密钥库删除。先查生产 App 的 name、displayName、appBaseUrl、status，确认精确名称与域名；相近品牌不得按模糊匹配批量写入。
+
+在事务内核对目标集合及预期数量，将目标 status 设为 revoked，清空 ssoRedirectUri、callbackUrl，并按精确 appName 删除其 MessageRoute；删除条件必须非空。提交后回读每项目标状态、空回调和剩余路由数，并核对相邻未选应用状态。检查现有 env 注册来源是否仍可能恢复该接入，只清理已确认目标。使用 admin Dashboard `Apps` revoke 时，也要检查关联路由是否残留。
+
+保留 App 行及扫码、支付历史关联，不物理删除历史业务记录。永远不要 revoke `selftest` 或 `admin`。汇报使用“已撤销接入、清空回调、移除路由”，不能把保留的历史行称为物理删除，也不能把清空 SSO 回调称为已删除远程部署。
 
 ### 改 app 名 / 删 app 后清 stale MessageRoute
 
@@ -340,7 +345,7 @@ vault 输出有时带 `\r\r\n\x1b[F\x1b[K` TTY 噪声前缀（vault 进度 UI �
 1. `cd ~/projects/wx-gateway && git status` 干净 → 改代码
 2. `pnpm build` 本地过编译
 3. 提交 + push
-4. **两实例一键部署**:`python3 scripts/redeploy-both.py wx-gateway-pucs wxmsg.mvp.restry.cn 3800 && python3 scripts/redeploy-both.py wx-gateway wx.mvp.restry.cn 3794`(脚本走 `/api/exec` 拉生产 `.env` 当 manifest.env,跑完整 build + postDeploy migrate;约 1-2min/实例)
+4. 从启用且获准的实例生成显式发布清单，逐实例发布；先从生产保护配置构造 manifest，再执行 build 和 postDeploy migrate。莆阳停用期间只发布造悟者，禁止调用会连带启动莆阳的双实例脚本。
 5. 跑 selftest 回归（§5）
 6. **验证真在跑新代码**(关键):部署完成后立刻在两实例 PM2 拉 `pm_uptime`(`pm2 jlist` 找 `wx-gateway-pucs` / `wx-gateway`),跟 FanoutLog 最新 error 时间戳对比——部署前的 error 是存量,部署后还出同样 error = 部署没真生效(查 `.next` 是否更新 / PM2 是否 reload)。**别看一条新 error 就回滚结论**,先核对 uptime 跟 error 谁早谁晚
 
@@ -377,7 +382,7 @@ vault 输出有时带 `\r\r\n\x1b[F\x1b[K` TTY 噪声前缀（vault 进度 UI �
 | webhook 出站 `X-WX-Webhook-Sig` | `${event}\|${payOrderId}\|${status}\|${ts}` |
 | `signFinalize` (扫码登录) | `${token}\|${openid}\|${unionid}\|${ts}` |
 
-secret 类型：**64 hex 字符**，HMAC 时必须 `Buffer.from(secret, "hex")` 转 bytes，不是当字符串用。
+按具体端点实现核对 HMAC key 编码，不能从 secret 外观是 64 hex 推断应解码。SSO `/sso/token` 与已核实的 internal 鉴权使用 `createHmac('sha256', app.secret)`，key 是原字符串；`Buffer.from(sig, 'hex')` 用于比较签名摘要，不等于把 key hex 解码。其他端点先读其实际签名与验签代码，再用同一固定 fixture 验证客户端、服务端和文档一致，禁止顺手改变旧合同。
 
 ## 5. selftest 自动化回归（不用真扫码）
 
@@ -446,11 +451,17 @@ secret 类型：**64 hex 字符**，HMAC 时必须 `Buffer.from(secret, "hex")` 
 - ❌ 改 finalize 签名 payload 而不通知所有业务方（=全员断）
 - ❌ 删 selftest app（=回归没法跑）
 - ❌ 公众号后台先改凭证再去 wx-gateway 改配置（=验证窗口期挂）
-- ❌ 用 playwright/puppeteer 验证（自动化用 selftest 脚本，真扫码用 browser-agent skill）
+- ❌ 用协议 selftest 或 HTTP 成功替代真实浏览器交互验收；保留 selftest 验证签名与状态，同时用真实浏览器检查页面、Cookie、CSP 和重定向链。
 - ❌ 加新功能不加 selftest 的对应断言
 - ❌ **把任何真值写进本 skill 或任何 git tracked 文件**
 
-## 9. 已注册 app 清单（最新真值看 admin Dashboard `/admin/apps`）
+## 接入盘点与停止实例
+
+- 盘点先查生产 `App` 的安全字段：name、displayName、appBaseUrl、status、callbackUrl、ssoRedirectUri；按 active 应用筛选并以域名去重，排除 admin/selftest 后统计业务网站。历史 confirmed 仅证明网关曾确认扫码，不能证明当前本站 session、网站在线或 SSO 已接入；callbackUrl 为空也不等于未接扫码登录。
+- 用户问本地维护哪些站点时，逐项核对本地 Git 仓库、分支和生产来源；区分本地 checkout、仅远程分支和未找到源码。共享仓库的两个产品按各自生产分支隔离，禁止用本地当前分支代表云端版本。
+- 用户只要求停用时，停止目标进程并移除其 PM2 持久化启动项、关闭 manifest 自动部署，然后回读进程、监听端口和自动部署位；保留数据库、配置、域名和源码。不要套用下线删除清单。未经明确恢复指令，不得因修复、发布或健康检查将其拉起。
+
+## 9. 已注册 app 清单（下表仅为示例；最新真值查生产 App）
 
 | name | appBaseUrl | finalizePath | 用途 |
 |---|---|---|---|
@@ -524,7 +535,7 @@ print("USED:", used)
 3. **查空闲端口**。
 4. **首次 deploy**：zip 同一份 wx-gateway repo，manifest project=新名 port=空闲 host=新域名。**schema 同步必须放 postDeploy**，绝不在 build 里做（DB owner ≠ deployer pg user，build 阶段 prisma migrate 会 P1000，已知坑 mvp-deployer §6 表）。
    - 有 migration 历史：`postDeploy: "pnpm prisma migrate deploy"`
-   - **wx-gateway 当前没 migration 历史（用 db push 管 schema）**：`postDeploy: "pnpm prisma db push --skip-generate --accept-data-loss"`，否则 migrate deploy 在空 _prisma_migrations 表 + 已存在表的库上会卡。
+   - 先只读检查 `_prisma_migrations` 和实际 schema；本仓库已有迁移，使用 `pnpm prisma migrate deploy`。若既有库缺基线或存在 drift，先备份并核对迁移兼容性，禁止用 `db push --accept-data-loss`、reset 或重建业务表绕过错误。
    - build 命令保留：`pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build`（**不带 migrate**，否则 deployer prisma 阶段强用 mvpadmin 凭据 P1000）。
 5. **验证路由不串**：`curl -sSI https://<新host>/` 看 Location 域名。串到别的项目 = 端口冲突，回步骤 3。
 6. **等爸爸给公众号 4 件套 + openid** → 回填 redeploy。
@@ -548,6 +559,12 @@ print("USED:", used)
 ## 七天 SSO 运维
 
 涉及 SSO 发布、配置和验收，读取 `references/sso-operations.md`。两实例各用独立 issuer/key；首次登录起七天绝对过期。A/B 接入方必须切换授权码流程，网关升级不会自动改造旧客户端。生产状态以实际发布和回读证据为准。
+
+SSO 改造必须保留接入方原有登录布局、二维码组件和备用登录入口：中央有效会话无感返回；中央无会话返回本站显示原二维码。允许内部自动顶层往返建立中央 Cookie，但不显示网关扫码页、确认页、介绍页或“正在检查 SSO”提示，不增加登录按钮或用户操作。本站扫码成功也必须建立原桌面浏览器中央会话，供另一站复用；不能只恢复旧扫码而丢掉 SSO。
+
+点击退出直接由本站后端鉴权调用网关撤销当前绑定中央会话，再清本站会话及登录事务，留在本站；不得将用户送到网关确认退出。保持 Origin/CSRF、单会话绑定与重复点击幂等，撤销失败明确报错并保留可重试凭证，不按 openid 批量撤销。旧会话缺安全撤销凭证时，显式说明重新登录要求，不能伪称退出成功。后台复用中央身份仍须执行既有管理员权限校验。
+
+验收必须从真实登录和退出按钮开始，验证本站原二维码、双向跨站免扫码、退出后刷新不复登、双击退出及重新扫码。版本回读、页面可打开、二维码加载只证明对应阶段；本地微信替身不能算生产真实扫码成功。完整跨站表单和重定向链需浏览器验证，HTTP 303 不代表浏览器已成功落地。详细协议与 CSP 排查见 `references/sso-operations.md`。
 
 ## Internal API surface（业务方调用入口）
 
