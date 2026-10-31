@@ -56,6 +56,19 @@ Response 403: app_not_found / secret_unavailable
 
 > 🍔 **查公众号菜单**:`GET /internal/wx-menu`,签名串 `"wx-menu|<ts>|<appName>"`。返完整 `buttons` + `myButtons`(server 预筛——**只列绑到本 app 的 click 按钮**,带 key/name/type/path[菜单层级])。业务方收到 click 事件后用这个查上下文写智能回复。详见 `references/menu-view.md`。
 
+## 跨站 SSO 接入与验收
+
+1. 先核验生产版本的 SSO 契约和可用性，再提供端点、签名及参数示例；开发中的接口不得写成已上线能力。共用公众号、openid 或网关不自动形成 SSO。
+2. A、B 都改用同一网关的统一授权入口：业务后端保存随机 state 与 PKCE verifier，浏览器顶层跳转网关；回调核验 state/issuer 后，由后端交换一次性授权码并建立本站会话。精确登记回调 URL，密钥只留后端，禁止站间共享 Cookie。
+3. 中央会话按用户要求保留 7 天；明确固定到期还是滑动续期，并分别说明网站本地会话期限。两套公众号网关是独立 issuer，不能默认跨实例共享登录。
+4. 手机扫码与电脑浏览器是两个 Cookie 容器。必须在发起登录的电脑浏览器上，经服务端确认扫码身份后设置网关的 HttpOnly、Secure、host-only Cookie；仅在微信 callback 设置 Cookie 无法实现电脑 B 站免扫码。
+5. 用同一真实浏览器完成 A 登录 → B 自动往返网关 → B 本站会话可访问受保护页面；另验新浏览器需扫码、七天到期、退出、授权码重放及错误 client/redirect/PKCE 拒绝。中央退出与各站本地退出分开说明。未完成真实扫码或生产部署时，逐项标明未验收。
+6. 签名示例逐项对照生产实现和契约测试，尤其核验 secret 是 UTF-8 字符串还是 hex bytes；密钥外观为 hex 不能证明采用哪种编码。
+
+## 七天单点登录 SSO
+
+需要“登录 A 后打开 B 免扫码”时，读取 `references/sso.md` 并按仓库 `docs/SSO.md` 实施。A/B 都要改用顶层授权码 + PKCE + 后端兑换；旧扫码 finalize 不建立中央会话。同一 issuer 七天绝对到期；不同公众号实例不互通。先核实目标生产已部署，不能把本地实现当上线。
+
 ## 1. 网关基础信息
 
 - 公众号回调已配在网关上，**不要在业务项目里再配回调**
@@ -320,16 +333,16 @@ model User {
 
 跑 `prisma migrate dev --name add_wx_login` 或 `prisma db push`。
 
-### 步骤 7：验证（强制 browser-agent skill）
+### 步骤 7：验证真实浏览器登录
 
-派 Claude Code 用 browser-agent skill（端口 4822）做 E2E：
+编码与测试修复使用 OMP；Hermes 独立使用当前可用的浏览器工具验收，不调用 Claude Code，也不依赖固定浏览器端口。验证：
 1. 业务项目 `/login` 显示二维码
 2. 调 `POST {gateway}/wx/qr/{app}` 返回 `qrcodeUrl` (不是 placehold.co)
 3. SSE `/wx/poll/{token}` 持续推 `pending`
 4. 真扫码后 SSE 推 `confirmed` + `redirect`，浏览器跳到 finalize → 落 `/app`
 5. cookie 设上，后续请求带 session 可访问 `/app`
 
-不要让爸爸/Hermes 代跑浏览器。
+由 Hermes 承担自动化验收；确实需要微信本人扫码时才请用户完成该步骤。模拟 confirmed 只能证明协议链路，不能宣称真实扫码成功。
 
 
 ## 进阶专题（按需加载）
@@ -465,6 +478,6 @@ const j = await r.json(); // { ok, errcode, errmsg, msgId }
 
 ## 用户绑定（网关自动完成，业务方零感知）
 
-一个公众号下挂多个业务 app 时，gateway 按 openid 路由消息。**绑定由网关在 OAuth/扫码完成时自动写入**——业务方不调任何 binding API。同一 openid 在多个 app 登录过：最后一次赢。
+一个公众号下挂多个业务 app 时，gateway 按 openid 路由消息。**绑定由网关在 OAuth/扫码完成时自动写入**——业务方不调任何 binding API。同一 openid 可同时绑定多个 app（1:N）；不要把后一次登录解释成覆盖前一 app。用户绑定负责消息路由，不等于浏览器登录会话，不能据此宣称跨站免登录。
 
 排错：消息没到预期 app → 查 `UserAppBinding` 表 + `FanoutLog.boundApp`。process 缓存 60s，跨 worker 切换可能滞留。**单 app 场景** 可完全忽略绑定。
