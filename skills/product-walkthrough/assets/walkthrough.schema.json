@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "product-walkthrough.schema.json",
+  "title": "Product Walkthrough Manifest",
+  "description": "Declarative manifest describing business chapters, operations, and verified screenshots for a Product Walkthrough.",
+  "type": "object",
+  "required": ["title", "chapters"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary walkthrough heading, e.g. 'Product Walkthrough'."
+    },
+    "product": {
+      "type": "string",
+      "description": "Product or application name shown in the masthead and document title."
+    },
+    "lang": {
+      "type": "string",
+      "default": "en",
+      "description": "HTML document language tag, e.g. 'en' or 'zh-CN'."
+    },
+    "brandColor": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "default": "#005aa9",
+      "description": "Primary accent hex color."
+    },
+    "canvasBackground": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "default": "#eef0f2",
+      "description": "Neutral letterbox canvas color when fitting non-16:9 captures into 1920x1080."
+    },
+    "releaseBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxChapter": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based index of the last chapter visible to customers. Later chapters are locked in inert templates."
+        },
+        "lockedLabel": {
+          "type": "string",
+          "default": "Planned release",
+          "description": "Tooltip / aria label for locked chapters."
+        }
+      }
+    },
+    "chapters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "operations"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "tabLabel": {
+            "type": "string",
+            "description": "Optional shorter label for the sticky top tab bar."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "operations": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["id", "title", "steps"],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9-]+$"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "steps": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "title", "source"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Path to raw PNG screenshot (relative to manifest directory or absolute)."
+                      },
+                      "role": {
+                        "type": "string",
+                        "description": "Actor role shown on the card and lightbox, e.g. 'Admin', 'Sales', 'Customer'."
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": ["pass", "action", "simulation", "blocked", "failed"],
+                        "default": "pass"
+                      },
+                      "statusLabel": {
+                        "type": "string",
+                        "description": "Short accessible label for the status dot."
+                      },
+                      "capturedAt": {
+                        "type": "string",
+                        "description": "ISO-8601 capture timestamp."
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Application route captured (for provenance metadata)."
+                      },
+                      "narration": {
+                        "type": "string",
+                        "description": "Optional concise spoken narration script for the presentation mode."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

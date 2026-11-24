@@ -1,0 +1,79 @@
+{
+  "title": "Product Walkthrough",
+  "product": "Acme Workspace",
+  "lang": "en",
+  "brandColor": "#005aa9",
+  "canvasBackground": "#eef0f2",
+  "chapters": [
+    {
+      "id": "sign-in",
+      "tabLabel": "Sign in",
+      "title": "1. Sign in and workspace overview",
+      "operations": [
+        {
+          "id": "sign-in-access",
+          "title": "Authenticate and open the workspace",
+          "steps": [
+            {
+              "id": "01-login",
+              "title": "Open the sign-in screen",
+              "source": "raw/01-login.png",
+              "role": "Unauthenticated",
+              "status": "action",
+              "statusLabel": "Sign in",
+              "capturedAt": "2026-11-24T09:00:00Z",
+              "url": "/login",
+              "narration": "Users start at the sign-in screen with standard workspace credentials."
+            },
+            {
+              "id": "01-home",
+              "title": "Verify role-scoped navigation on the home view",
+              "source": "raw/01-home.png",
+              "role": "Workspace Admin",
+              "status": "pass",
+              "statusLabel": "Workspace loaded",
+              "capturedAt": "2026-11-24T09:01:00Z",
+              "url": "/workspace",
+              "narration": "After signing in, the sidebar displays only the modules granted to the active role."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "review-flow",
+      "tabLabel": "Review & Approve",
+      "title": "2. Submit and approve a request",
+      "operations": [
+        {
+          "id": "submit-request",
+          "title": "Complete and submit a new request",
+          "steps": [
+            {
+              "id": "02-form",
+              "title": "Fill in request details and preview validation",
+              "source": "raw/02-form.png",
+              "role": "Requester",
+              "status": "action",
+              "statusLabel": "Form ready",
+              "capturedAt": "2026-11-24T09:05:00Z",
+              "url": "/requests/new",
+              "narration": "The requester enters the required details and reviews the summary before submitting."
+            },
+            {
+              "id": "02-saved",
+              "title": "Confirm the persisted request in the queue",
+              "source": "raw/02-saved.png",
+              "role": "Approver",
+              "status": "pass",
+              "statusLabel": "Saved and visible",
+              "capturedAt": "2026-11-24T09:06:00Z",
+              "url": "/requests",
+              "narration": "The submitted request immediately appears in the approver's queue with its audit timestamp."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

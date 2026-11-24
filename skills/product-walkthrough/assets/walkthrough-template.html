@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="__LANG__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>__PAGE_TITLE__</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --subtle: #f8fafc;
+  --ink: #0f172a;
+  --body: #334155;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --line-soft: #eef2f6;
+  --brand: __BRAND_COLOR__;
+  --brand-tint: #f0f6ff;
+  --green: #059669;
+  --green-ink: #065f46;
+  --amber: #d97706;
+  --amber-ink: #92400e;
+  --red: #b42318;
+}
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.28) transparent;
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background-color: rgba(100, 116, 139, 0.26); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background-color: rgba(71, 85, 105, 0.48); }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, a { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; }
+button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+h1, h2, h3, p { margin: 0; }
+[hidden] { display: none !important; }
+
+.wrap { width: 100%; padding: 0 32px; margin: 0 auto; }
+
+/* Minimal Borderless Masthead */
+.masthead {
+  padding-top: 14px;
+  padding-bottom: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 20px;
+}
+.report-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  min-width: 0;
+}
+h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.eyebrow, .meta-chip {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.eyebrow::before, .meta-chip::before {
+  content: "·";
+  margin-right: 10px;
+  color: #cbd5e1;
+}
+
+/* Sticky Top Navigation Bar */
+.tabs-shell {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 44px;
+}
+.tabstrip {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+.tablist {
+  display: flex;
+  gap: 22px;
+  min-width: 0;
+  min-height: 44px;
+  align-items: stretch;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tablist::-webkit-scrollbar { display: none; }
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  padding: 8px 0 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: color 120ms ease;
+}
+.tab-btn::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+.tab-btn[data-state="pass"]::before { background: var(--green); }
+.tab-btn[data-state="simulation"]::before { background: var(--brand); }
+.tab-btn[data-state="blocked"]::before { background: var(--amber); }
+.tab-btn[data-state="failed"]::before { background: var(--red); }
+.tab-btn:hover:not(:disabled) { color: var(--ink); }
+.tab-btn[aria-selected="true"] {
+  border-bottom-color: var(--brand);
+  color: var(--ink);
+  font-weight: 600;
+}
+.tab-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.tab-scroll {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tab-scroll-left { left: 0; background: linear-gradient(to right, #fff 65%, rgba(255,255,255,0)); }
+.tab-scroll-right { right: 0; background: linear-gradient(to left, #fff 65%, rgba(255,255,255,0)); }
+.tab-scroll:hover { color: var(--brand); }
+
+.outline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--body);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.outline-toggle:hover { background: var(--subtle); color: var(--brand); }
+.outline-toggle[aria-expanded="true"] { color: var(--brand); font-weight: 600; }
+.outline-count { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); }
+
+/* Two-Column Body: Main Content + Sticky Two-Level Right Outline */
+.report-body {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+}
+main {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 32px 56px;
+}
+.outline-pane {
+  position: sticky;
+  top: 45px;
+  width: 308px;
+  flex-shrink: 0;
+  height: calc(100vh - 45px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.outline-pane[data-collapsed="true"] { display: none; }
+@media (max-width: 1359px) {
+  .outline-pane {
+    position: fixed;
+    top: 45px;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    max-width: 85vw;
+    z-index: 35;
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.08);
+  }
+}
+.outline-head {
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.outline-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px 24px;
+}
+.outline-chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.outline-ch-row { display: flex; align-items: center; gap: 2px; }
+.outline-ch-btn {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.outline-ch-btn:hover:not(:disabled) { background: var(--subtle); }
+.outline-ch-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.outline-ch-btn::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+.outline-ch-btn[data-state="pass"]::before { background: var(--green); }
+.outline-ch-btn[data-state="simulation"]::before { background: var(--brand); }
+.outline-ch-btn[data-state="blocked"]::before { background: var(--amber); }
+.outline-ch-btn[data-state="failed"]::before { background: var(--red); }
+.outline-ch-btn[aria-current="true"] { color: var(--brand); }
+.outline-ch-count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.outline-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.outline-fold:hover { background: var(--subtle); color: var(--ink); }
+.outline-chapters li[data-expanded="false"] .outline-fold svg { transform: rotate(-90deg); }
+.outline-chapters li[data-expanded="false"] .outline-ops { display: none; }
+.outline-ops {
+  list-style: none;
+  margin: 2px 0 6px 9px;
+  padding: 0 0 0 10px;
+  border-left: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.outline-op-link {
+  display: block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outline-op-link:hover { color: var(--ink); background: var(--subtle); }
+.outline-op-link[aria-current="location"] {
+  color: var(--brand);
+  font-weight: 600;
+  background: var(--brand-tint);
+}
+
+/* Chapter & Operation Sections */
+.chapter-panel { outline: none; }
+.chapter-header {
+  padding: 18px 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.chapter-header h2 { font-size: 18px; font-weight: 700; color: var(--ink); }
+.chapter-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.operation {
+  padding: 22px 0 26px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.operation:last-child { border-bottom: 0; }
+.operation-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.operation-head h3 { font-size: 15.5px; font-weight: 600; color: var(--ink); }
+
+/* Fixed 4-Column Thumbnail Grid (1 item occupies 1 column, never stretches) */
+.shots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px 20px;
+}
+@media (max-width: 1100px) {
+  .shots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+figure {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.shot-button {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--subtle);
+  overflow: hidden;
+  cursor: zoom-in;
+  transition: border-color 140ms ease;
+}
+figure:hover .shot-button { border-color: #94a3b8; }
+.shot-button img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #ffffff;
+}
+.shot-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.zoom-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+figure:hover .shot-overlay,
+figure:hover .zoom-badge,
+.shot-button:focus-visible .shot-overlay,
+.shot-button:focus-visible .zoom-badge { opacity: 1; }
+
+figcaption {
+  padding: 10px 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.caption-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #94a3b8;
+}
+.status-dot.pass { background: var(--green); }
+.status-dot.action { background: #94a3b8; }
+.status-dot.simulation { background: var(--brand); }
+.status-dot.blocked { background: var(--amber); }
+.status-dot.failed { background: var(--red); }
+figcaption h4 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.shot-role {
+  padding-left: 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* Lightbox Dialog */
+dialog.lightbox {
+  max-width: min(94vw, 1520px);
+  max-height: 94vh;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+}
+dialog.lightbox::backdrop { background: rgba(15, 23, 42, 0.65); }
+.lb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.lb-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.lb-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.lb-pill {
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--subtle);
+  color: var(--body);
+  border: 1px solid var(--line);
+}
+.lb-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.lb-btn {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.lb-btn:hover:not(:disabled) { background: var(--subtle); }
+.lb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.lb-stage {
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  max-height: calc(94vh - 60px);
+}
+.lb-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(94vh - 84px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #ffffff;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+<header class="wrap masthead">
+  <div class="report-identity">
+    <h1>__TITLE__</h1>
+    __PRODUCT_EYEBROW__
+    <span class="meta-chip">__SUMMARY_COUNTS__</span>
+  </div>
+</header>
+
+<div class="tabs-shell">
+  <div class="wrap nav-row">
+    <div class="tabstrip">
+      <button type="button" class="tab-scroll tab-scroll-left" aria-label="Scroll chapters left" hidden>&#8249;</button>
+      <div class="tablist" role="tablist" aria-label="Walkthrough chapters">
+        __TABS_HTML__
+      </div>
+      <button type="button" class="tab-scroll tab-scroll-right" aria-label="Scroll chapters right" hidden>&#8250;</button>
+    </div>
+    <button type="button" class="outline-toggle" aria-expanded="true" aria-controls="walkthrough-outline">
+      <span>Outline</span>
+      <span class="outline-count">__TOTAL_STEPS__</span>
+    </button>
+  </div>
+</div>
+
+<div class="report-body">
+  <main id="walkthrough-main">
+    __PANELS_HTML__
+    __LOCKED_TEMPLATES_HTML__
+  </main>
+
+  <aside id="walkthrough-outline" class="outline-pane" aria-label="Walkthrough outline" data-collapsed="false">
+    <div class="outline-head">
+      <strong>Chapters</strong>
+      <span>__SUMMARY_COUNTS__</span>
+    </div>
+    <nav class="outline-scroll">
+      <ol class="outline-chapters">
+        __OUTLINE_HTML__
+      </ol>
+    </nav>
+  </aside>
+</div>
+
+<dialog id="walkthrough-lightbox" class="lightbox" aria-label="Screenshot preview">
+  <div class="lb-head">
+    <div class="lb-meta">
+      <span id="lb-index" class="lb-pill"></span>
+      <span id="lb-title" class="lb-title"></span>
+      <span id="lb-role" class="lb-pill" hidden></span>
+      <span id="lb-status" class="lb-pill" hidden></span>
+    </div>
+    <div class="lb-controls">
+      <button type="button" class="lb-btn" id="lb-prev">Prev</button>
+      <button type="button" class="lb-btn" id="lb-next">Next</button>
+      <button type="button" class="lb-btn" id="lb-close">Close</button>
+    </div>
+  </div>
+  <div class="lb-stage">
+    <img id="lb-img" alt="">
+  </div>
+</dialog>
+
+<script>
+(() => {
+  const tabs = [...document.querySelectorAll('.tab-btn')];
+  const panels = [...document.querySelectorAll('.chapter-panel')];
+  const outlinePane = document.getElementById('walkthrough-outline');
+  const outlineToggle = document.querySelector('.outline-toggle');
+  const tablist = document.querySelector('.tablist');
+  const scrollLeftBtn = document.querySelector('.tab-scroll-left');
+  const scrollRightBtn = document.querySelector('.tab-scroll-right');
+
+  const enabledTabs = tabs.filter(t => !t.disabled);
+  const enabledChapterIds = new Set(enabledTabs.map(t => t.dataset.chapter));
+
+  function activateChapter(chapterId, focusOpId) {
+    if (!enabledChapterIds.has(chapterId)) {
+      chapterId = enabledTabs[0]?.dataset.chapter;
+    }
+    if (!chapterId) return;
+
+    for (const tab of tabs) {
+      const selected = tab.dataset.chapter === chapterId;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    }
+    for (const panel of panels) {
+      panel.hidden = panel.dataset.chapter !== chapterId;
+    }
+    for (const btn of document.querySelectorAll('.outline-ch-btn')) {
+      const isCurrent = btn.dataset.chapter === chapterId;
+      btn.setAttribute('aria-current', isCurrent ? 'true' : 'false');
+      if (isCurrent) btn.closest('li')?.setAttribute('data-expanded', 'true');
+    }
+    for (const link of document.querySelectorAll('.outline-op-link')) {
+      link.setAttribute('aria-current', focusOpId && link.dataset.operation === focusOpId ? 'location' : 'false');
+    }
+
+    if (focusOpId) {
+      const target = document.getElementById(focusOpId);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    const nextHash = '#' + (focusOpId || ('chapter-' + chapterId));
+    if (location.hash !== nextHash) history.replaceState(null, '', nextHash);
+  }
+
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => activateChapter(tab.dataset.chapter));
+    tab.addEventListener('keydown', e => {
+      const idx = enabledTabs.indexOf(tab);
+      if (idx === -1) return;
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const next = enabledTabs[(idx + 1) % enabledTabs.length];
+        next.focus();
+        activateChapter(next.dataset.chapter);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const prev = enabledTabs[(idx - 1 + enabledTabs.length) % enabledTabs.length];
+        prev.focus();
+        activateChapter(prev.dataset.chapter);
+      }
+    });
+  }
+
+  for (const btn of document.querySelectorAll('.outline-ch-btn')) {
+    btn.addEventListener('click', () => activateChapter(btn.dataset.chapter));
+  }
+  for (const fold of document.querySelectorAll('.outline-fold')) {
+    fold.addEventListener('click', () => {
+      const li = fold.closest('li');
+      const expanded = li.getAttribute('data-expanded') !== 'false';
+      li.setAttribute('data-expanded', String(!expanded));
+      fold.setAttribute('aria-expanded', String(!expanded));
+    });
+  }
+  for (const link of document.querySelectorAll('.outline-op-link')) {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      activateChapter(link.dataset.chapter, link.dataset.operation);
+    });
+  }
+
+  outlineToggle.addEventListener('click', () => {
+    const collapsed = outlinePane.getAttribute('data-collapsed') === 'true';
+    outlinePane.setAttribute('data-collapsed', String(!collapsed));
+    outlineToggle.setAttribute('aria-expanded', String(collapsed));
+  });
+
+  function updateTabArrows() {
+    const maxScroll = tablist.scrollWidth - tablist.clientWidth;
+    scrollLeftBtn.hidden = tablist.scrollLeft <= 2;
+    scrollRightBtn.hidden = maxScroll - tablist.scrollLeft <= 2;
+  }
+  tablist.addEventListener('scroll', updateTabArrows);
+  window.addEventListener('resize', updateTabArrows);
+  scrollLeftBtn.addEventListener('click', () => tablist.scrollBy({ left: -240, behavior: 'smooth' }));
+  scrollRightBtn.addEventListener('click', () => tablist.scrollBy({ left: 240, behavior: 'smooth' }));
+  updateTabArrows();
+
+  // Lightbox
+  const figures = [...document.querySelectorAll('figure[data-step-id]')];
+  const dialog = document.getElementById('walkthrough-lightbox');
+  const lbImg = document.getElementById('lb-img');
+  const lbIndex = document.getElementById('lb-index');
+  const lbTitle = document.getElementById('lb-title');
+  const lbRole = document.getElementById('lb-role');
+  const lbStatus = document.getElementById('lb-status');
+  const lbPrev = document.getElementById('lb-prev');
+  const lbNext = document.getElementById('lb-next');
+  const lbClose = document.getElementById('lb-close');
+  let activeIndex = -1;
+  let lastTrigger = null;
+
+  function showSlide(index) {
+    if (index < 0 || index >= figures.length) return;
+    activeIndex = index;
+    const fig = figures[index];
+    const img = fig.querySelector('img');
+    lbImg.src = img.src;
+    lbImg.alt = img.alt;
+    lbIndex.textContent = `${index + 1} / ${figures.length}`;
+    lbTitle.textContent = fig.dataset.title || '';
+    lbRole.textContent = fig.dataset.role || '';
+    lbRole.hidden = !fig.dataset.role;
+    lbStatus.textContent = fig.dataset.statusLabel || '';
+    lbStatus.hidden = !fig.dataset.statusLabel;
+    lbPrev.disabled = index === 0;
+    lbNext.disabled = index === figures.length - 1;
+  }
+
+  figures.forEach((fig, idx) => {
+    const btn = fig.querySelector('.shot-button');
+    btn.addEventListener('click', () => {
+      lastTrigger = btn;
+      showSlide(idx);
+      dialog.showModal();
+    });
+  });
+
+  lbPrev.addEventListener('click', () => showSlide(activeIndex - 1));
+  lbNext.addEventListener('click', () => showSlide(activeIndex + 1));
+  lbClose.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
+  dialog.addEventListener('close', () => { if (lastTrigger) lastTrigger.focus(); });
+  dialog.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); showSlide(activeIndex - 1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); showSlide(activeIndex + 1); }
+  });
+
+  // Initial route from hash (strictly honoring release boundary)
+  function initFromHash() {
+    const raw = decodeURIComponent(location.hash.replace(/^#/, ''));
+    if (raw.startsWith('chapter-')) {
+      activateChapter(raw.slice('chapter-'.length));
+      return;
+    }
+    const opEl = raw ? document.getElementById(raw) : null;
+    const panel = opEl?.closest('.chapter-panel');
+    if (panel && enabledChapterIds.has(panel.dataset.chapter)) {
+      activateChapter(panel.dataset.chapter, raw);
+      return;
+    }
+    activateChapter(enabledTabs[0]?.dataset.chapter);
+  }
+  window.addEventListener('hashchange', initFromHash);
+  initFromHash();
+})();
+</script>
+</body>
+</html>
